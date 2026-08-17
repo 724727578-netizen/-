@@ -1,0 +1,689 @@
+{{define "content"}}
+{{if .Task}}
+<!-- ========== 任务概览状态条 ========== -->
+<section class="card" style="padding:10px 14px;margin-top:8px">
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:6px">
+    <span style="font-weight:900;font-size:13px;color:#172033">当前任务：</span><span style="font-size:13px;color:var(--brand);font-weight:800">{{.Task.FilePrefix}}</span>
+    <span class="sep" style="border-left:1px solid var(--line);height:18px"></span>
+    <span style="font-size:12px;color:#64748b;font-weight:700">{{if eq .Task.TaskMode "no_split"}}不拆分{{else}}按行数拆分{{end}}</span>
+    <span class="sep" style="border-left:1px solid var(--line);height:18px"></span>
+    <span class="stat-item"><b>{{.TotalFiles}}</b> TXT 文件</span>
+    <span class="stat-item"><b>{{.Locked}}</b> 已锁定</span>
+    <span class="stat-item"><b>{{.Unlocked}}</b> 待处理</span>
+    <span class="stat-item"><b>{{.TotalLines}}</b> 总行数</span>
+  </div>
+  <div class="actions" style="margin:0">
+    <a class="btn green sm" href="/download/{{.TaskID}}">下载全部 ZIP</a>
+    {{if eq .Task.TaskMode "no_split"}}<a class="btn green sm" href="/mode3/download_txt/{{.TaskID}}/1">下载 TXT</a>{{end}}
+    {{if .HasUndo}}<form method="post" action="/undo_last_insert/{{.TaskID}}" style="display:inline"><button class="btn orange sm" type="submit">撤回</button></form>{{end}}
+    <form method="post" action="/unlock_all/{{.TaskID}}" style="display:inline" data-confirm="确定解锁全部 TXT？解锁后可以重新插入。"><button class="btn secondary sm" type="submit">解锁</button></form>
+    <form method="post" action="/delete_all/{{.TaskID}}" style="display:inline" data-confirm="确定删除本任务下所有 TXT？删除后不可恢复。" data-danger="true"><button class="btn red sm" type="submit">删除 TXT</button></form>
+    <form method="post" action="/clear_task/{{.TaskID}}" style="display:inline" data-confirm="确定清空当前任务？当前任务的 TXT、ZIP、状态信息都会被删除。" data-danger="true"><button class="btn orange sm" type="submit">清空任务</button></form>
+  </div>
+</section>
+{{end}}
+
+<!-- ========== 创建任务 ========== -->
+<section class="card" id="mode3-create-task">
+  <div class="collapse-header" id="uploadHeader" onclick="toggleUpload()">
+    <h2 style="margin:0;font-size:14px">创建任务</h2>
+    <span class="toggle-icon" id="uploadToggle">{{if .Task}}▶{{else}}▼{{end}}</span>
+  </div>
+  <div id="uploadBody" class="collapse-body" style="max-height:{{if .Task}}0{{else}}none{{end}}">
+    <div class="section-note">上传原始总数据包 TXT，可选择按行数拆分或多个号码不拆分。创建后的任务进入"模式三"处理流程。</div>
+    <form method="post" action="/start_task/mode3" enctype="multipart/form-data">
+      <div class="task-mode-bar">
+        <label style="font-weight:700;font-size:13px;color:#172033;margin:0 12px 0 0">文件处理方式：</label>
+        <label class="tm-radio"><input type="radio" name="task_mode" value="split" checked onchange="onTaskModeChange()"> 按行数拆分</label>
+        <label class="tm-radio"><input type="radio" name="task_mode" value="no_split" onchange="onTaskModeChange()"> 不拆分</label>
+      </div>
+      <div class="create-task-grid">
+        <div class="ct-field ct-wide"><label>总数据包 TXT</label><input type="file" name="main_txt" accept=".txt" required></div>
+        <div class="ct-field" id="splitSizeField"><label>每个子 TXT 行数</label><input type="number" name="split_size" min="1" value="100" required></div>
+        <div class="ct-field"><label>文件名前缀</label><input type="text" name="file_prefix" value="data_" required></div>
+        <div class="ct-field ct-sm" id="indexWidthField"><label>编号位数</label><input type="number" name="index_width" min="1" max="8" value="2" required></div>
+        <div class="ct-field ct-sm" id="keepRemainderField"><label>尾包不足时</label><select name="keep_remainder"><option value="yes">保留</option><option value="no">丢弃</option></select></div>
+        <div class="ct-field ct-btn"><button class="btn" type="submit" id="submitTaskBtn">上传并创建</button></div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- ========== 插入执行面板 ========== -->
+{{if .Task}}
+<section class="card" id="mode3-insert-panel">
+  <h2 style="font-size:14px">模式三 — 插入执行</h2>
+  <div class="section-note">勾选下方文件列表中的 TXT，选择插入策略，执行插入后文件自动锁定。</div>
+  <form method="post" action="/mode3/insert/{{.TaskID}}" enctype="multipart/form-data" id="mode3InsertForm" onsubmit="return validateMode3InsertForm()">
+    <div class="insert-layout">
+      <div class="insert-source-panel">
+        <label style="margin-top:0">上传 TXT 文件</label>
+        <input type="file" name="insert_txt" accept=".txt" id="mode3InsertFile">
+        <div class="field-help">上传 TXT，读取非空行作为插入内容。</div>
+        <div class="insert-or">或手动粘贴</div>
+        <label>手动粘贴内容</label>
+        <textarea name="paste_text" id="mode3PasteArea" class="insert-paste-textarea"></textarea>
+        <div class="field-help">一行一条，系统自动忽略空行。</div>
+      </div>
+      <div class="insert-strategy">
+        <label style="margin-top:0">插入策略</label>
+        <div class="sp-row">
+          <div class="sp-field"><label>插入位置</label><select name="insert_position"><option value="top">文件开头</option><option value="bottom">文件末尾</option></select></div>
+          <div class="sp-field"><label>统一追加后缀</label><input type="text" name="append_suffix" placeholder="可选，例如 @c.us"></div>
+          <div class="sp-field"><label>分配方式</label><select name="insert_mode" id="mode3InsertMode" onchange="onMode3InsertModeChange()"><option value="same">相同内容</option><option value="sequence">顺序分配</option></select></div>
+        </div>
+        <div class="sp-row">
+          <div class="sp-field" id="mode3PerTxtField"><label>每个 TXT 插入条数</label><input type="number" name="per_txt_count" min="1" value="1"></div>
+        </div>
+        <div class="actions"><button class="btn" type="submit">确认执行插入</button></div>
+      </div>
+    </div>
+  </form>
+</section>
+
+{{end}}
+
+<!-- ========== TXT 文件列表 ========== -->
+{{if .Task}}
+<section class="card" id="mode3-file-list">
+  <h2 style="font-size:14px">TXT 文件列表</h2>
+  <div class="file-toolbar">
+    <div class="ft-left">
+      <button class="btn blue sm" type="button" onclick="mode3ShuffleSelected()">打乱</button>
+      <button class="btn green sm" type="button" onclick="mode3ShowExportDialog()">导出</button>
+      <span class="ft-sep"></span>
+      <button class="btn light sm" type="button" onclick="mode3SelectAll()">全部</button>
+      <button class="btn light sm" type="button" onclick="mode3SelectCurrentPage()">当前页</button>
+      <button class="btn light sm" type="button" onclick="mode3DeselectAll()">取消选择</button>
+    </div>
+    <div class="ft-right">
+      <button class="filter-btn active" data-filter="all" onclick="mode3SetFilter('all')">全部状态</button>
+      <button class="filter-btn" data-filter="unlocked" onclick="mode3SetFilter('unlocked')">待处理</button>
+      <button class="filter-btn" data-filter="locked" onclick="mode3SetFilter('locked')">已锁定</button>
+      <span class="ft-sep"></span>
+      <span class="page-info" id="mode3PageInfo"></span>
+      <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:12px">每页
+        <select id="mode3PageSize" onchange="mode3ChangePageSize()" style="width:auto;height:28px;padding:2px 6px">
+          <option value="10">10</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="1000">1000</option>
+        </select>
+      </label>
+      <button class="btn light sm" type="button" onclick="mode3PrevPage()" id="mode3PrevBtn">上一页</button>
+      <button class="btn light sm" type="button" onclick="mode3NextPage()" id="mode3NextBtn">下一页</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36px"><input type="checkbox" id="mode3SelectAllCheckbox" onchange="mode3TogglePageCheckboxes(this.checked)"></th>
+          <th style="width:44px">序号</th>
+          <th>文件名</th>
+          <th style="width:60px">行数</th>
+          <th style="width:70px">状态</th>
+          <th style="width:70px">插入条数</th>
+          <th style="width:100px">处理方式</th>
+          <th style="width:55px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="mode3FileTableBody">
+        {{range .Task.Files}}
+        <tr class="mode3-file-row" data-locked="{{.Locked}}" data-index="{{.Index}}">
+          <td><input type="checkbox" name="selected" value="{{.Index}}" form="mode3InsertForm" class="mode3-file-cb"></td>
+          <td><span class="muted" style="font-weight:800">{{.Index}}</span></td>
+          <td><span class="file-name" style="font-weight:800;font-size:13px;word-break:break-all">{{.Filename}}</span></td>
+          <td>{{.LineCount}}</td>
+          <td><span class="pill {{if .Locked}}locked{{else}}open{{end}}">{{if .Locked}}已锁定{{else}}待处理{{end}}</span></td>
+          <td>{{if .InsertedCount}}{{.InsertedCount}}{{else}}-{{end}}</td>
+          <td><span class="muted" style="font-size:12px">{{if .BusinessMode}}{{.BusinessMode}}{{else}}-{{end}}</span></td>
+          <td>
+            <button class="btn sm light" type="button" onclick="mode3PreviewFile('{{$.TaskID}}','{{.Index}}')">预览</button>
+            <a class="btn sm light" href="/mode3/download_txt/{{$.TaskID}}/{{.Index}}">下载</a>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <div class="file-footer">
+    <span id="mode3FooterInfo" class="muted"></span>
+    <div class="ft-right">
+      <button class="btn light sm" type="button" onclick="mode3PrevPage()">上一页</button>
+      <button class="btn light sm" type="button" onclick="mode3NextPage()">下一页</button>
+    </div>
+  </div>
+</section>
+{{end}}
+
+<!-- ========== 预览模态框 ========== -->
+<div class="modal" id="mode3PreviewModal"><div class="modal-box"><div class="modal-head"><strong id="mode3PreviewTitle">TXT 预览</strong><button class="btn light sm" onclick="mode3ClosePreview()">关闭</button></div><div class="modal-content" id="mode3PreviewContent"></div></div></div>
+
+<!-- ========== 导出方式选择模态框 ========== -->
+<div class="modal" id="mode3ExportModal">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-head">
+      <strong>请选择导出方式</strong>
+      <button class="btn light sm" onclick="mode3CloseExportDialog()">关闭</button>
+    </div>
+    <div class="modal-content" style="padding:20px">
+      <div style="margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:6px;margin-bottom:10px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--brand)'" onmouseout="this.style.borderColor='var(--line)'">
+          <input type="radio" name="export_type" value="txt" checked style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-weight:700;font-size:14px;color:#172033">导出 TXT</span>
+            <span style="font-size:12px;color:#64748b">将全部已选 TXT 一次性批量保存到指定文件夹</span>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:6px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--brand)'" onmouseout="this.style.borderColor='var(--line)'">
+          <input type="radio" name="export_type" value="zip" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-weight:700;font-size:14px;color:#172033">导出 ZIP</span>
+            <span style="font-size:12px;color:#64748b">将全部已选 TXT 打包为一个 ZIP 压缩包</span>
+          </div>
+        </label>
+      </div>
+      <div class="actions" style="justify-content:flex-end;gap:8px;margin:0">
+        <button class="btn light" onclick="mode3CloseExportDialog()">取消</button>
+        <button class="btn" onclick="mode3ConfirmExport()">下一步</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 同名文件冲突处理模态框 ========== -->
+<div class="modal" id="mode3ConflictModal">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-head"><strong>发现同名文件</strong><button class="btn light sm" onclick="mode3CloseConflictDialog()">关闭</button></div>
+    <div class="modal-content" style="padding:20px">
+      <p style="margin:0 0 14px;font-size:13px;color:#334155;line-height:1.6">目标文件夹中有 <strong id="mode3ConflictCount">0</strong> 个文件与本次导出重名，请选择统一处理方式。</p>
+      <div style="margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;cursor:pointer">
+          <input type="radio" name="conflict_strategy" value="skip" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0">
+          <div><span style="font-weight:600;font-size:13px">跳过同名文件</span><br><span style="font-size:12px;color:#64748b">保留目标文件夹中的已有文件</span></div>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;cursor:pointer">
+          <input type="radio" name="conflict_strategy" value="overwrite" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0">
+          <div><span style="font-weight:600;font-size:13px">覆盖同名文件</span><br><span style="font-size:12px;color:#64748b">用新文件替换目标文件夹中的已有文件</span></div>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:6px;cursor:pointer">
+          <input type="radio" name="conflict_strategy" value="rename" checked style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0">
+          <div><span style="font-weight:600;font-size:13px">自动重命名</span><br><span style="font-size:12px;color:#64748b">自动生成序号避免冲突（如 data_04_1.txt）</span></div>
+        </label>
+      </div>
+      <div class="actions" style="justify-content:flex-end;gap:8px;margin:0">
+        <button class="btn light" onclick="mode3CloseConflictDialog()">取消</button>
+        <button class="btn" onclick="mode3ConfirmConflict()">开始导出</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 批量导出进度模态框 ========== -->
+<div class="modal" id="mode3ProgressModal">
+  <div class="modal-box" style="max-width:400px;text-align:center">
+    <div class="modal-head"><strong>正在批量导出 TXT</strong></div>
+    <div class="modal-content" style="padding:24px">
+      <p style="margin:0 0 12px;font-size:14px;color:#334155">已完成：<strong id="mode3ProgressDone">0</strong> / <strong id="mode3ProgressTotal">0</strong></p>
+      <div style="display:flex;justify-content:center;gap:20px;font-size:13px">
+        <span style="color:#22c55e">成功：<strong id="mode3ProgressOk">0</strong></span>
+        <span style="color:#f59e0b">跳过：<strong id="mode3ProgressSkip">0</strong></span>
+        <span style="color:#ef4444">失败：<strong id="mode3ProgressFail">0</strong></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 批量导出结果模态框 ========== -->
+<div class="modal" id="mode3ResultModal">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-head"><strong>导出完成</strong><button class="btn light sm" onclick="mode3CloseResultDialog()">关闭</button></div>
+    <div class="modal-content" style="padding:20px" id="mode3ResultContent">
+      <p style="margin:0 0 8px;font-size:14px;color:#334155">已选择：<strong id="mode3ResultTotal">0</strong> 个</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#22c55e">成功导出：<strong id="mode3ResultOk">0</strong> 个</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#f59e0b">跳过：<strong id="mode3ResultSkip">0</strong> 个</p>
+      <p style="margin:0 0 14px;font-size:14px;color:#ef4444">失败：<strong id="mode3ResultFail">0</strong> 个</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#64748b" id="mode3ResultPath"></p>
+      <div class="actions" style="justify-content:flex-end;gap:8px;margin:8px 0 0">
+        <button class="btn" onclick="mode3CloseResultDialog()">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.insert-paste-textarea{width:420px;max-width:100%;height:220px;min-height:220px;max-height:220px;overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:22px;font-size:13px;resize:none}
+.task-mode-bar{display:flex;align-items:center;padding:10px 0 6px;flex-wrap:wrap;gap:6px}
+.tm-radio{display:inline-flex;align-items:center;gap:4px;margin:0 16px 0 0;font-size:13px;font-weight:600;color:#334155;cursor:pointer}
+.tm-radio input[type="radio"]{accent-color:var(--brand);width:16px;height:16px;cursor:pointer}
+.create-task-grid{display:grid;grid-template-columns:minmax(360px,2fr) 160px 200px 120px 160px auto;gap:12px;align-items:end;margin-top:8px}
+.ct-field label{margin:0 0 3px}.ct-field input,.ct-field select{height:36px}.ct-btn{align-self:end;padding-bottom:0}.ct-btn .btn{margin-top:0;white-space:nowrap}
+@media(max-width:1100px){.create-task-grid{grid-template-columns:1fr 1fr}.ct-wide{grid-column:1/-1}}
+.insert-layout{display:grid;grid-template-columns:520px minmax(0,1fr);gap:24px;align-items:start}
+.insert-source-panel{max-width:520px;border-right:1px solid var(--line);padding-right:24px}
+.insert-or{text-align:center;color:var(--muted);font-size:12px;font-weight:800;padding:6px 0;position:relative}
+.insert-or::before,.insert-or::after{content:'';position:absolute;top:50%;width:calc(50% - 30px);height:1px;background:var(--line)}
+.insert-or::before{left:0}.insert-or::after{right:0}
+.sp-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px}
+.sp-field label{margin:4px 0 3px}.sp-field input,.sp-field select{height:34px;font-size:13px}
+.file-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:8px 0}
+.ft-left,.ft-right{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.ft-sep{border-left:1px solid var(--line);height:20px;margin:0 2px}
+.page-info{font-size:12px;color:var(--muted);font-weight:800}
+.file-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:8px}
+</style>
+
+<script>
+// ========== 任务模式切换 ==========
+function onTaskModeChange(){
+  var mode=document.querySelector('input[name="task_mode"]:checked').value;
+  var splitFields=['splitSizeField','indexWidthField','keepRemainderField'];
+  var btn=document.getElementById('submitTaskBtn');
+  splitFields.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.style.display=mode==='no_split'?'none':'';
+  });
+  btn.textContent=mode==='no_split'?'上传并创建':'上传并拆分';
+}
+
+// ========== 上传折叠 ==========
+function toggleUpload(){
+  var body=document.getElementById('uploadBody');
+  var icon=document.getElementById('uploadToggle');
+  if(body.style.maxHeight==='0px'||body.style.maxHeight==='0'){
+    body.style.maxHeight='600px';icon.textContent='▼';
+  }else{
+    body.style.maxHeight='0px';icon.textContent='▶';
+  }
+}
+
+// ========== 插入模式切换 ==========
+function onMode3InsertModeChange(){
+  var mode=document.getElementById('mode3InsertMode').value;
+  document.getElementById('mode3PerTxtField').style.display=mode==='sequence'?'':'none';
+}
+
+// ========== 插入表单校验 ==========
+function validateMode3InsertForm(){
+  var fileInput=document.getElementById('mode3InsertFile');
+  var pasteArea=document.getElementById('mode3PasteArea');
+  var hasFile=fileInput.files.length>0;
+  var hasPaste=pasteArea.value.trim()!=='';
+  if(!hasFile&&!hasPaste){
+    showAppAlert({title:'提示',message:'请先上传 TXT 文件或手动粘贴内容。',confirmText:'我知道了'});
+    return false;
+  }
+  if(hasFile&&hasPaste){
+    showAppAlert({title:'提示',message:'请只保留一种插入数据来源（上传文件或手动粘贴）。',confirmText:'我知道了'});
+    return false;
+  }
+  var checked=document.querySelectorAll('input[name="selected"]:checked').length;
+  if(checked===0){
+    showAppAlert({title:'提示',message:'请先在文件列表中勾选需要插入的 TXT 文件。',confirmText:'我知道了'});
+    return false;
+  }
+  showAppConfirm({title:'操作确认',message:'确定执行插入？选中的文件插入后将自动锁定。',confirmText:'确定',cancelText:'取消',danger:false,onConfirm:function(){document.getElementById('mode3InsertForm').submit();}});
+  return false;
+}
+
+// ========== 全局选择集合（跨分页持久化） ==========
+var mode3SelectedSet = new Set();
+
+function getMode3SelectedIndexes(){
+  return Array.from(mode3SelectedSet);
+}
+
+function mode3SyncCheckboxesFromSet(){
+  document.querySelectorAll('.mode3-file-cb').forEach(function(cb){
+    var val = parseInt(cb.value);
+    cb.checked = mode3SelectedSet.has(val);
+  });
+  mode3UpdateTableHeadCheckbox();
+}
+
+// ========== 全选逻辑（基于 Set） ==========
+function mode3SelectAll(){
+  getMode3FilteredRows().forEach(function(r){
+    var val = parseInt(r.querySelector('.mode3-file-cb').value);
+    mode3SelectedSet.add(val);
+    r.querySelector('.mode3-file-cb').checked = true;
+  });
+  mode3UpdateTableHeadCheckbox();
+}
+function mode3SelectCurrentPage(){
+  getMode3CurrentPageRows().forEach(function(r){
+    var val = parseInt(r.querySelector('.mode3-file-cb').value);
+    mode3SelectedSet.add(val);
+    r.querySelector('.mode3-file-cb').checked = true;
+  });
+  mode3UpdateTableHeadCheckbox();
+}
+function mode3DeselectAll(){
+  mode3SelectedSet.clear();
+  document.querySelectorAll('.mode3-file-cb').forEach(function(cb){cb.checked=false;});
+  document.getElementById('mode3SelectAllCheckbox').checked=false;
+}
+function mode3TogglePageCheckboxes(checked){
+  getMode3CurrentPageRows().forEach(function(r){
+    var cb=r.querySelector('.mode3-file-cb');
+    var val=parseInt(cb.value);
+    cb.checked=checked;
+    if(checked) mode3SelectedSet.add(val);
+    else mode3SelectedSet.delete(val);
+  });
+}
+function mode3UpdateTableHeadCheckbox(){
+  var rows=getMode3CurrentPageRows();
+  var allChecked=rows.length>0&&rows.every(function(r){
+    return r.querySelector('.mode3-file-cb').checked;
+  });
+  document.getElementById('mode3SelectAllCheckbox').checked=allChecked;
+}
+
+// ========== 打乱 ==========
+function mode3ShuffleSelected(){
+  var selected=getMode3SelectedIndexes();
+  if(selected.length===0){
+    showAppAlert({title:'提示',message:'请先选择需要打乱的 TXT 文件。',confirmText:'我知道了'});
+    return;
+  }
+  showAppConfirm({
+    title:'操作确认',
+    message:'确定随机打乱当前已选择的 '+selected.length+' 个 TXT 文件吗？\n\n本操作仅调整每个 TXT 内部号码顺序，不会删除或修改任何号码。',
+    confirmText:'确认打乱',
+    cancelText:'取消',
+    danger:false,
+    onConfirm:function(){
+      var form=document.createElement('form');
+      form.method='post';
+      form.action='/mode3/shuffle/{{.TaskID}}';
+      form.style.display='none';
+      selected.forEach(function(idx){
+        var inp=document.createElement('input');
+        inp.type='hidden';
+        inp.name='selected';
+        inp.value=idx;
+        form.appendChild(inp);
+      });
+      document.body.appendChild(form);
+      form.submit();
+    }
+  });
+}
+
+// ========== 导出弹窗 ==========
+function mode3ShowExportDialog(){
+  var selected=getMode3SelectedIndexes();
+  if(selected.length===0){
+    showAppAlert({title:'提示',message:'请先选择需要导出的 TXT 文件。',confirmText:'我知道了'});
+    return;
+  }
+  document.getElementById('mode3ExportModal').classList.add('open');
+}
+function mode3CloseExportDialog(){
+  document.getElementById('mode3ExportModal').classList.remove('open');
+}
+function mode3ConfirmExport(){
+  var type=document.querySelector('input[name="export_type"]:checked').value;
+  var selected=getMode3SelectedIndexes();
+  if(type==='zip'){
+    // 导出 ZIP：动态创建表单提交到 /mode3/export_zip/
+    var form=document.createElement('form');
+    form.method='post';
+    form.action='/mode3/export_zip/{{.TaskID}}';
+    form.style.display='none';
+    selected.forEach(function(idx){
+      var inp=document.createElement('input');
+      inp.type='hidden';
+      inp.name='selected';
+      inp.value=idx;
+      form.appendChild(inp);
+    });
+    document.body.appendChild(form);
+    mode3CloseExportDialog();
+    form.submit();
+  }else{
+    // 导出 TXT：使用 showDirectoryPicker + 批量写入
+    mode3CloseExportDialog();
+    mode3ExportTxtToFolder('{{.TaskID}}');
+  }
+}
+
+// ========== 批量导出 TXT 到文件夹 ==========
+async function mode3ExportTxtToFolder(taskID){
+  if(!window.showDirectoryPicker){
+    showAppAlert({title:'提示',message:'当前浏览器不支持批量写入本地文件夹，请选择导出 ZIP，或使用桌面 APP 版本。',confirmText:'我知道了'});
+    return;
+  }
+  var selected=getMode3SelectedIndexes();
+  if(selected.length===0) return;
+  // 弹出文件夹选择器
+  var dirHandle;
+  try{ dirHandle=await window.showDirectoryPicker(); }
+  catch(e){
+    if(e.name!=='AbortError') showAppAlert({title:'提示',message:'未选择文件夹，导出已取消。',confirmText:'我知道了'});
+    return;
+  }
+  // 从后端获取文件内容
+  var resp=await fetch('/mode3/export_selected_txt',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({task_id:taskID,selected:selected})
+  });
+  var data=await resp.json();
+  if(!data.ok||!data.files||data.files.length===0){
+    showAppAlert({title:'提示',message:'获取文件内容失败，请重试。',confirmText:'我知道了'});
+    return;
+  }
+  var files=data.files;
+  // 检查同名冲突
+  var conflictNames=[];
+  for(var f of files){
+    try{
+      await dirHandle.getFileHandle(f.filename);
+      conflictNames.push(f.filename);
+    }catch(e){/* 文件不存在则无冲突 */}
+  }
+  var strategy='rename';
+  if(conflictNames.length>0){
+    strategy=await new Promise(function(resolve){
+      window._mode3ConflictResolve=resolve;
+      document.getElementById('mode3ConflictCount').textContent=conflictNames.length;
+      document.getElementById('mode3ConflictModal').classList.add('open');
+    });
+    if(!strategy) return;
+  }
+  // 显示进度
+  mode3ShowProgress(files.length);
+  var okCount=0,skipCount=0,failCount=0;
+  for(var i=0;i<files.length;i++){
+    var f=files[i];
+    var filename=f.filename;
+    if(conflictNames.indexOf(f.filename)!==-1){
+      if(strategy==='skip'){ skipCount++; mode3UpdateProgress(i+1,okCount,skipCount,failCount); continue; }
+      if(strategy==='rename'){
+        var base=f.filename.replace(/\.txt$/i,'');
+        var counter=1;
+        while(true){
+          var candidate=base+'_'+counter+'.txt';
+          try{ await dirHandle.getFileHandle(candidate); counter++; }
+          catch(e){ filename=candidate; break; }
+        }
+      }
+    }
+    try{
+      var fh=await dirHandle.getFileHandle(filename,{create:true});
+      var writable=await fh.createWritable();
+      await writable.write(f.content);
+      await writable.close();
+      okCount++;
+    }catch(e){ failCount++; }
+    mode3UpdateProgress(i+1,okCount,skipCount,failCount);
+  }
+  mode3CloseProgress();
+  mode3ShowExportResult({total:files.length,ok:okCount,skip:skipCount,fail:failCount});
+}
+
+// ========== 冲突处理弹窗 ==========
+function mode3CloseConflictDialog(){
+  document.getElementById('mode3ConflictModal').classList.remove('open');
+  if(window._mode3ConflictResolve){ window._mode3ConflictResolve(null); window._mode3ConflictResolve=null; }
+}
+function mode3ConfirmConflict(){
+  var strategy=document.querySelector('input[name="conflict_strategy"]:checked').value;
+  document.getElementById('mode3ConflictModal').classList.remove('open');
+  if(window._mode3ConflictResolve){ window._mode3ConflictResolve(strategy); window._mode3ConflictResolve=null; }
+}
+
+// ========== 进度弹窗 ==========
+function mode3ShowProgress(total){
+  document.getElementById('mode3ProgressTotal').textContent=total;
+  document.getElementById('mode3ProgressDone').textContent='0';
+  document.getElementById('mode3ProgressOk').textContent='0';
+  document.getElementById('mode3ProgressSkip').textContent='0';
+  document.getElementById('mode3ProgressFail').textContent='0';
+  document.getElementById('mode3ProgressModal').classList.add('open');
+}
+function mode3UpdateProgress(done,ok,skip,fail){
+  document.getElementById('mode3ProgressDone').textContent=done;
+  document.getElementById('mode3ProgressOk').textContent=ok;
+  document.getElementById('mode3ProgressSkip').textContent=skip;
+  document.getElementById('mode3ProgressFail').textContent=fail;
+}
+function mode3CloseProgress(){
+  document.getElementById('mode3ProgressModal').classList.remove('open');
+}
+
+// ========== 结果弹窗 ==========
+function mode3CloseResultDialog(){
+  document.getElementById('mode3ResultModal').classList.remove('open');
+}
+function mode3ShowExportResult(res){
+  document.getElementById('mode3ResultTotal').textContent=res.total;
+  document.getElementById('mode3ResultOk').textContent=res.ok;
+  document.getElementById('mode3ResultSkip').textContent=res.skip;
+  document.getElementById('mode3ResultFail').textContent=res.fail;
+  document.getElementById('mode3ResultModal').classList.add('open');
+}
+
+// ========== 分页 ==========
+var mode3CurrentPage=1;
+var mode3PageSize=10;
+var mode3CurrentFilter='all';
+
+function getMode3FilteredRows(){
+  var rows=Array.from(document.querySelectorAll('.mode3-file-row'));
+  if(mode3CurrentFilter==='all') return rows;
+  return rows.filter(function(r){
+    var locked=r.dataset.locked==='true';
+    if(mode3CurrentFilter==='unlocked') return !locked;
+    if(mode3CurrentFilter==='locked') return locked;
+    return true;
+  });
+}
+
+function getMode3CurrentPageRows(){
+  var rows=getMode3FilteredRows();
+  var start=(mode3CurrentPage-1)*mode3PageSize;
+  var end=Math.min(start+mode3PageSize,rows.length);
+  return rows.slice(start,end);
+}
+
+function mode3RenderPage(){
+  var rows=getMode3FilteredRows();
+  var total=rows.length;
+  var totalPages=Math.max(1,Math.ceil(total/mode3PageSize));
+  if(mode3CurrentPage>totalPages) mode3CurrentPage=totalPages;
+  if(mode3CurrentPage<1) mode3CurrentPage=1;
+  var start=(mode3CurrentPage-1)*mode3PageSize;
+  var end=Math.min(start+mode3PageSize,total);
+  document.querySelectorAll('.mode3-file-row').forEach(function(r){r.style.display='none';});
+  rows.slice(start,end).forEach(function(r){r.style.display='';});
+  mode3SyncCheckboxesFromSet();
+  document.getElementById('mode3PageInfo').textContent='第 '+mode3CurrentPage+'/'+totalPages+' 页';
+  document.getElementById('mode3FooterInfo').textContent='共 '+total+' 个 TXT，当前显示 '+(start+1)+' - '+end+' 个';
+  document.getElementById('mode3PrevBtn').disabled=mode3CurrentPage<=1;
+  document.getElementById('mode3NextBtn').disabled=mode3CurrentPage>=totalPages;
+}
+function mode3ChangePageSize(){
+  mode3PageSize=parseInt(document.getElementById('mode3PageSize').value);
+  mode3CurrentPage=1;
+  mode3RenderPage();
+}
+function mode3PrevPage(){if(mode3CurrentPage>1){mode3CurrentPage--;mode3RenderPage();}}
+function mode3NextPage(){
+  var totalPages=Math.max(1,Math.ceil(getMode3FilteredRows().length/mode3PageSize));
+  if(mode3CurrentPage<totalPages){mode3CurrentPage++;mode3RenderPage();}
+}
+
+// ========== 筛选 ==========
+function mode3SetFilter(filter){
+  mode3CurrentFilter=filter;
+  mode3CurrentPage=1;
+  document.querySelectorAll('.filter-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.filter===filter);
+  });
+  mode3RenderPage();
+}
+
+// ========== 预览 ==========
+async function mode3PreviewFile(taskID,index){
+  var modal=document.getElementById('mode3PreviewModal');
+  var title=document.getElementById('mode3PreviewTitle');
+  var body=document.getElementById('mode3PreviewContent');
+  title.textContent='读取中...';body.textContent='';modal.classList.add('open');
+  var resp=await fetch('/file_preview/'+taskID+'/'+index);
+  var data=await resp.json();
+  if(!data.ok){title.textContent='读取失败';body.textContent=data.error||'未知错误';return;}
+  title.textContent=data.filename+' · '+data.line_count+' 行';body.textContent=data.content;
+}
+function mode3ClosePreview(){document.getElementById('mode3PreviewModal').classList.remove('open')}
+document.addEventListener('DOMContentLoaded',function(){
+  document.getElementById('mode3PreviewModal').addEventListener('click',function(e){
+    if(e.target===this) mode3ClosePreview();
+  });
+  document.getElementById('mode3ExportModal').addEventListener('click',function(e){
+    if(e.target===this) mode3CloseExportDialog();
+  });
+  document.getElementById('mode3ConflictModal').addEventListener('click',function(e){
+    if(e.target===this) mode3CloseConflictDialog();
+  });
+  document.getElementById('mode3ResultModal').addEventListener('click',function(e){
+    if(e.target===this) mode3CloseResultDialog();
+  });
+});
+
+// ========== 消息弹窗化 ==========
+(function(){
+  var el=document.querySelector('.alert.ok')||document.querySelector('.alert.err');
+  if(el){
+    var msg=el.textContent.trim();
+    var isOk=el.classList.contains('ok');
+    el.style.display='none';
+    if(isOk){
+      var title='操作完成';
+      if(msg.indexOf('打乱')!==-1) title='打乱完成';
+      if(msg.indexOf('插入')!==-1) title='插入完成';
+      showAppAlert({title:title,message:msg,confirmText:'确定'});
+    }else{
+      showAppAlert({title:'提示',message:msg,confirmText:'我知道了'});
+    }
+  }
+})();
+
+// ========== 初始化 ==========
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.mode3-file-cb').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var val=parseInt(this.value);
+      if(this.checked) mode3SelectedSet.add(val);
+      else mode3SelectedSet.delete(val);
+      mode3UpdateTableHeadCheckbox();
+    });
+  });
+  mode3RenderPage();
+  onMode3InsertModeChange();
+});
+</script>
+{{end}}

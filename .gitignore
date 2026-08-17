@@ -1,0 +1,24 @@
+# 本地任务数据与用户号码
+gt_tasks_go/
+gt_tasks/
+
+# 编译产物
+*.exe
+gt_split_go
+*.app/
+
+# 压缩包、日志与临时文件
+*.zip
+*.log
+*.tmp
+*.pyc
+.DS_Store
+
+# 历史手工备份目录
+*备份*/
+
+# 便携版 git 工具（本地使用，不提交）
+.git-tools/
+
+# Python 虚拟环境（本机遗留，不提交）
+.venv/

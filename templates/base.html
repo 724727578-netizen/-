@@ -1,0 +1,301 @@
+{{define "base"}}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+:root{--bg:#f2f5f9;--panel:#fff;--text:#172033;--muted:#6b7a90;--line:#dce3ef;--brand:#2563eb;--green:#078860;--red:#d73535;--orange:#dd6b20;--shadow:0 2px 8px rgba(27,38,64,.06)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;font-size:14px}
+.sidebar{position:fixed;inset:0 auto 0 0;width:220px;background:#111827;color:#d8dee9;padding:18px 14px;z-index:10}
+.brand{font-weight:900;font-size:20px;padding:6px 10px 16px;border-bottom:1px solid rgba(255,255,255,.1);color:#67e8f9;letter-spacing:2px}.brand small{display:block;color:#b9c4d5;font-size:11px;margin-top:4px;letter-spacing:0}
+.nav{display:grid;gap:6px;margin-top:14px}.nav a{color:#d8dee9;text-decoration:none;padding:10px;border-radius:6px;font-weight:800;font-size:13px;display:flex;align-items:center;gap:8px;transition:background .15s,color .15s}.nav a:hover{background:#24334d;color:#fff}.nav a.active{background:#243b60;color:#fff}
+.nav-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.09)}
+.nav-mode1 .nav-dot{background:#3b82f6}.nav-mode2 .nav-dot{background:#22c55e}.nav-mode3 .nav-dot{background:#a855f7}.nav-mode4 .nav-dot{background:#f59e0b}.nav-mode5 .nav-dot{background:#06b6d4}.nav-mode6 .nav-dot{background:#f43f5e}
+.nav-mode1.active{background:#1e4f91!important}.nav-mode2.active{background:#17643a!important}.nav-mode3.active{background:#5b2a86!important}.nav-mode4.active{background:#7a4a08!important}.nav-mode5.active{background:#0d6172!important}.nav-mode6.active{background:#81243a!important}
+.wrap{margin-left:220px;padding:16px 20px;width:calc(100% - 220px)}.inner{max-width:1440px;margin:0 auto}
+.hero{background:#13213a;color:#fff;padding:12px 18px;border-radius:6px;display:flex;justify-content:space-between;gap:14px;align-items:center}.hero h1{margin:0;font-size:18px}.hero p{margin:4px 0 0;color:#c7d2e5;font-size:12px}
+.grid{display:grid;gap:12px}.two{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;margin-top:10px;box-shadow:var(--shadow)}.card h2,.card h3{margin:0 0 10px;font-size:15px}.card h3{font-size:14px}
+.muted{color:var(--muted);font-size:12px;line-height:1.6}.section-note{background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin:8px 0 12px;color:#475569;line-height:1.65;font-size:12px}
+.field-help{color:#64748b;font-size:11px;line-height:1.5;margin-top:3px}.alert{padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid;font-size:13px}.ok{background:#ecfdf5;color:#065f46;border-color:#b7ead5}.err{background:#fff1f2;color:#9f1239;border-color:#fecdd3}
+label{display:block;font-weight:800;font-size:12px;margin:8px 0 4px}input,select,textarea{width:100%;border:1px solid #cfd8e5;border-radius:6px;padding:7px 10px;font:inherit;font-size:13px;background:#fff;height:36px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 2px rgba(37,99,235,.12)}
+textarea{min-height:0;resize:vertical;height:auto}.inline{display:flex;flex-wrap:wrap;gap:8px;align-items:end}.inline>*{min-width:140px;flex:0 1 auto}.inline .wide{min-width:220px;flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;background:var(--brand);color:#fff;text-decoration:none;border-radius:5px;padding:0 12px;height:32px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;transition:opacity .12s}.btn:hover{opacity:.85}
+.btn.secondary{background:#475569}.btn.green{background:var(--green)}.btn.red{background:var(--red)}.btn.orange{background:var(--orange)}.btn.light{background:#eef4ff;color:#1d4ed8;border:1px solid #c7d7fe;padding:0 10px}
+.btn.sm{height:28px;padding:0 8px;font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:900;background:#eef2ff;color:#1d4ed8;height:22px}
+.pill.locked{background:#fee2e2;color:#b91c1c}.pill.open{background:#dcfce7;color:#166534}.pill.inserted{background:#e0f2fe;color:#0369a1}
+.stat-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0}
+.stat-item{display:flex;align-items:center;gap:4px;font-size:13px;color:#334155}.stat-item b{font-size:15px;color:var(--text);min-width:20px;text-align:right}
+/* 表格 */
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}thead{background:#f8fafc}
+th{padding:8px 10px;text-align:left;font-weight:900;color:#334155;border-bottom:1px solid var(--line);font-size:12px;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #eef2f7;vertical-align:middle;font-size:13px;height:40px}
+tr:last-child td{border-bottom:none}tr:hover td{background:#f8fafc}
+/* 标签切换 */
+.tab-bar{display:flex;gap:0;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:8px 0 10px;width:fit-content}
+.tab-btn{padding:6px 14px;font-size:12px;font-weight:800;border:0;background:#f8fafc;color:#475569;cursor:pointer;transition:all .12s;border-right:1px solid var(--line)}.tab-btn:last-child{border-right:0}
+.tab-btn.active{background:var(--brand);color:#fff}
+.tab-btn:hover:not(.active){background:#eef2ff}
+/* 策略选择 */
+.strategy-bar{display:flex;gap:4px;border:1px solid var(--line);border-radius:5px;overflow:hidden;width:fit-content}
+.strategy-btn{padding:5px 12px;font-size:12px;font-weight:800;border:0;background:#f8fafc;color:#475569;cursor:pointer;transition:all .12s;border-right:1px solid var(--line)}.strategy-btn:last-child{border-right:0}
+.strategy-btn.active{background:var(--brand);color:#fff}.strategy-btn:hover:not(.active){background:#eef2ff}
+/* 折叠 */
+.collapse-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.collapse-header .toggle-icon{font-size:10px;color:var(--muted);transition:transform .15s}
+.collapse-header.collapsed .toggle-icon{transform:rotate(-90deg)}
+.collapse-body{overflow:hidden;transition:max-height .2s ease}
+/* 状态条 */
+.status-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:10px}
+.status-bar .sep{border-left:1px solid var(--line);height:20px}
+/* 日志 */
+.logs{white-space:pre-wrap;background:#101827;color:#d6e3ff;border-radius:6px;padding:12px;max-height:240px;overflow:auto;font-size:12px;line-height:1.55}
+.log-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.log-header .toggle-icon{font-size:10px;color:var(--muted);transition:transform .15s}
+.log-header.collapsed .toggle-icon{transform:rotate(-90deg)}
+/* 筛选按钮 */
+.filter-bar{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.filter-btn{padding:4px 10px;font-size:12px;font-weight:800;border:1px solid var(--line);border-radius:999px;background:#f8fafc;color:#475569;cursor:pointer;transition:all .12s}
+.filter-btn.active{background:var(--brand);color:#fff;border-color:var(--brand)}.filter-btn:hover:not(.active){background:#eef2ff}
+/* 模态框 */
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}.modal.open{display:flex}
+.modal-box{background:#fff;border-radius:6px;width:min(900px,94vw);max-height:86vh;display:flex;flex-direction:column}
+.modal-head{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.modal-head strong{font-size:14px}.modal-content{padding:14px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+/* 自定义确认弹窗 */
+.app-modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:30}.app-modal-mask.open{display:flex}
+.app-modal{background:#fff;border-radius:10px;width:440px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.app-modal-title{padding:18px 20px 0;font-size:15px;font-weight:900;color:#172033}
+.app-modal-body{padding:10px 20px 18px;font-size:14px;color:#334155;line-height:1.6}
+.app-modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line)}
+/* 锚点滚动偏移，防止被顶部遮挡 */
+[id^="mode1-"],[id^="mode2-"],[id^="mode3-"]{scroll-margin-top:20px}
+@media(max-width:820px){.sidebar{position:static;width:auto}.wrap{margin:0;width:auto;padding:12px}.hero{display:block}.inline>*{min-width:100%}}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">山猫<small>本地 TXT 分包工具</small></div>
+  <nav class="nav">
+    <a class="{{if eq .ActiveNav "home"}}active{{end}}" href="/">首页</a>
+    <a class="nav-mode1 {{if eq .ActiveNav "mode1"}}active{{end}}" href="/mode1"><span class="nav-dot"></span>业务模式一</a>
+    <a class="nav-mode2 {{if eq .ActiveNav "mode2"}}active{{end}}" href="/mode2"><span class="nav-dot"></span>业务模式二</a>
+    <a class="nav-mode3 {{if eq .ActiveNav "mode3"}}active{{end}}" href="/mode3"><span class="nav-dot"></span>业务模式三</a>
+    <a class="nav-mode4 {{if eq .ActiveNav "mode4"}}active{{end}}" href="/mode4"><span class="nav-dot"></span>业务模式四</a>
+    <a class="nav-mode5 {{if eq .ActiveNav "mode5"}}active{{end}}" href="/mode5"><span class="nav-dot"></span>业务模式五</a>
+    <a class="nav-mode6 {{if eq .ActiveNav "mode6"}}active{{end}}" href="/mode6"><span class="nav-dot"></span>业务模式六</a>
+    <a href="/current_task">返回当前任务</a>
+  </nav>
+</aside>
+<main class="wrap"><div class="inner">
+  <section class="hero"><div><h1>{{.Title}}</h1><p>纯本地运行：拆分、插入、锁定、撤回、导出 ZIP。</p></div></section>
+  {{if .Success}}<div class="alert ok">{{.Success}}</div>{{end}}
+  {{if .Error}}<div class="alert err">{{.Error}}</div>{{end}}
+  {{template "content" .}}
+  <section class="card" style="margin-top:14px">
+    <div class="log-header" id="logHeader" onclick="toggleLogs()">
+      <h3 style="margin:0">运行日志</h3>
+      <span class="toggle-icon" id="logToggle">▼</span>
+    </div>
+    <div id="logBody" class="collapse-body" style="max-height:0">
+      <div style="margin-top:8px"><a class="btn sm light" href="/clear_logs">清空日志</a></div>
+      <div class="logs" style="margin-top:6px">{{.Logs}}</div>
+    </div>
+  </section>
+</div></main>
+<script>
+function toggleLogs(){
+  const body=document.getElementById('logBody');
+  const icon=document.getElementById('logToggle');
+  const header=document.getElementById('logHeader');
+  if(body.style.maxHeight==='0px'||!body.style.maxHeight||body.style.maxHeight==='0'){
+    body.style.maxHeight=body.scrollHeight+'px';
+    header.classList.remove('collapsed');
+  }else{
+    body.style.maxHeight='0px';
+    header.classList.add('collapsed');
+  }
+}
+// 如果日志不为空，默认自动展开
+document.addEventListener('DOMContentLoaded',function(){
+  var logsEl=document.querySelector('.logs');
+  if(logsEl&&logsEl.textContent.trim().length>0){
+    var body=document.getElementById('logBody');
+    body.style.maxHeight=body.scrollHeight+'px';
+  }
+});
+</script>
+
+<!-- ========== 全局自定义弹窗 ========== -->
+<div class="app-modal-mask" id="appModalMask">
+  <div class="app-modal">
+    <div class="app-modal-title" id="appModalTitle">操作确认</div>
+    <div class="app-modal-body" id="appModalBody"></div>
+    <div class="app-modal-actions" id="appModalActions">
+      <button type="button" class="btn light" id="appModalCancelBtn">取消</button>
+      <button type="button" class="btn" id="appModalConfirmBtn">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== 全局自定义弹窗 ==========
+var __appModalCallback = null;
+
+function showAppConfirm(options) {
+  var mask = document.getElementById('appModalMask');
+  var titleEl = document.getElementById('appModalTitle');
+  var bodyEl = document.getElementById('appModalBody');
+  var cancelBtn = document.getElementById('appModalCancelBtn');
+  var confirmBtn = document.getElementById('appModalConfirmBtn');
+
+  titleEl.textContent = options.title || '操作确认';
+  bodyEl.textContent = options.message || '';
+
+  // 取消按钮
+  if (options.cancelText === null || options.cancelText === undefined) {
+    cancelBtn.style.display = 'none';
+  } else {
+    cancelBtn.style.display = '';
+    cancelBtn.textContent = options.cancelText;
+  }
+
+  // 确认按钮
+  confirmBtn.textContent = options.confirmText || '确定';
+  confirmBtn.className = 'btn';
+  if (options.danger) {
+    confirmBtn.classList.add('red');
+  }
+
+  __appModalCallback = typeof options.onConfirm === 'function' ? options.onConfirm : null;
+  mask.classList.add('open');
+}
+
+function showAppAlert(options) {
+  showAppConfirm({
+    title: options.title || '提示',
+    message: options.message || '',
+    confirmText: options.confirmText || '我知道了',
+    cancelText: null,
+    onConfirm: options.onConfirm || null
+  });
+}
+
+// 弹窗按钮事件（委托）
+document.addEventListener('click', function(e) {
+  var mask = document.getElementById('appModalMask');
+  if (!mask.classList.contains('open')) return;
+
+  if (e.target.id === 'appModalCancelBtn') {
+    mask.classList.remove('open');
+    __appModalCallback = null;
+  }
+  if (e.target.id === 'appModalConfirmBtn') {
+    mask.classList.remove('open');
+    var cb = __appModalCallback;
+    __appModalCallback = null;
+    if (typeof cb === 'function') cb();
+  }
+});
+
+// 点击遮罩关闭
+document.getElementById('appModalMask').addEventListener('click', function(e) {
+  if (e.target === this) {
+    this.classList.remove('open');
+    __appModalCallback = null;
+  }
+});
+
+// data-confirm 表单拦截
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('form[data-confirm]').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      showAppConfirm({
+        title: form.dataset.danger === 'true' ? '危险操作确认' : '操作确认',
+        message: form.dataset.confirm,
+        danger: form.dataset.danger === 'true',
+        confirmText: form.dataset.danger === 'true' ? '确认删除' : '确定',
+        cancelText: '取消',
+        onConfirm: function() {
+          form.submit();
+        }
+      });
+    });
+  });
+});
+</script>
+
+<script>
+// ========== 各业务模式表单自动保存与恢复 ==========
+(function(){
+  var selector='input,textarea,select';
+  var saveTimer=null;
+  function stateKey(){return 'shanmao_form_state:'+location.pathname+location.search;}
+  function eligible(el){
+    if(!el||el.dataset.noPersist==='true'||el.disabled)return false;
+    if(el.tagName==='INPUT'){
+      var type=(el.type||'text').toLowerCase();
+      if(['file','hidden','submit','button','reset','password'].indexOf(type)>=0)return false;
+    }
+    return !!(el.id||el.name);
+  }
+  function allFields(){return Array.from(document.querySelectorAll(selector)).filter(eligible);}
+  function fieldKey(el,fields){
+    if(el.id)return 'id:'+el.id;
+    var same=fields.filter(function(item){return item.name===el.name;});
+    return 'name:'+el.name+'#'+same.indexOf(el);
+  }
+  function readState(){
+    try{return JSON.parse(localStorage.getItem(stateKey())||'{}');}catch(e){return {};}
+  }
+  function saveState(){
+    var fields=allFields(),state={};
+    fields.forEach(function(el){
+      var key=fieldKey(el,fields);
+      if(el.type==='checkbox'||el.type==='radio')state[key]={checked:el.checked,value:el.value};
+      else state[key]={value:el.value};
+    });
+    try{localStorage.setItem(stateKey(),JSON.stringify(state));}catch(e){}
+  }
+  function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveState,180);}
+  function restoreFields(){
+    var state=readState(),fields=allFields();
+    fields.forEach(function(el){
+      if(el.dataset.persistRestored==='true')return;
+      var saved=state[fieldKey(el,fields)];
+      el.dataset.persistRestored='true';
+      if(!saved)return;
+      if(el.type==='checkbox'||el.type==='radio')el.checked=!!saved.checked;
+      else if(saved.value!==undefined)el.value=saved.value;
+      el.dispatchEvent(new Event('change',{bubbles:false}));
+    });
+  }
+  document.addEventListener('input',function(e){if(eligible(e.target))scheduleSave();},true);
+  document.addEventListener('change',function(e){if(eligible(e.target))scheduleSave();},true);
+  document.addEventListener('DOMContentLoaded',function(){
+    restoreFields();
+    new MutationObserver(function(){restoreFields();}).observe(document.body,{childList:true,subtree:true});
+  });
+  window.addEventListener('pagehide',saveState);
+})();
+</script>
+
+{{if .ScrollTarget}}
+<script>
+// 操作完成后自动滚动到对应区域
+document.addEventListener('DOMContentLoaded',function(){
+  var el=document.getElementById('{{.ScrollTarget}}');
+  if(el) el.scrollIntoView({behavior:'auto',block:'start'});
+});
+</script>
+{{end}}
+
+</body></html>
+{{end}}

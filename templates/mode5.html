@@ -1,0 +1,249 @@
+{{define "content"}}
+<section class="card" id="mode5-merge">
+  <h2>功能一：号码汇总</h2>
+  <p class="section-note">上传一个 ZIP 压缩包，或一次选择多个 TXT。系统会读取全部 TXT、去掉空行，并整理成一个 TXT 下载。</p>
+  <form method="post" action="/mode5/merge" enctype="multipart/form-data">
+    <div class="inline">
+      <div class="wide">
+        <label>ZIP 压缩包（可选）</label>
+        <input type="file" name="merge_archive" accept=".zip,application/zip" onchange="m5ShowSelected(this,'m5MergeSelected')">
+      </div>
+      <div class="wide">
+        <label>批量 TXT（可多选）</label>
+        <input type="file" name="merge_txt_files" accept=".txt,text/plain" multiple onchange="m5ShowSelected(this,'m5MergeSelected')">
+      </div>
+      <div>
+        <label>重复号码</label>
+        <select name="deduplicate"><option value="no">保留重复号码</option><option value="yes">自动去重</option></select>
+      </div>
+      <div>
+        <label>号码顺序</label>
+        <select name="sort_lines"><option value="original">保持文件原顺序</option><option value="asc">按文字升序排列</option></select>
+      </div>
+    </div>
+    <div id="m5MergeSelected" class="selected-file-note"></div>
+    <div class="actions"><button class="btn green" type="submit">整理并下载 TXT</button></div>
+  </form>
+</section>
+
+<section class="card" id="mode5-upload">
+  <h2>功能二：批量插入号码</h2>
+  <p class="section-note">第一步先上传文件。解析成功后，下方会显示每个 TXT 的文件名和行数；随后再填写号码执行插入。</p>
+  <form id="m5UploadForm" enctype="multipart/form-data">
+    <div class="inline">
+      <div class="wide">
+        <label>ZIP 压缩包（可选）</label>
+        <input type="file" name="insert_archive" accept=".zip,application/zip" onchange="m5ShowSelected(this,'m5UploadSelected')">
+      </div>
+      <div class="wide">
+        <label>批量 TXT（可多选）</label>
+        <input type="file" name="insert_txt_files" accept=".txt,text/plain" multiple onchange="m5ShowSelected(this,'m5UploadSelected')">
+      </div>
+    </div>
+    <div id="m5UploadSelected" class="selected-file-note"></div>
+    <div class="actions"><button class="btn" id="m5UploadBtn" type="submit">上传并展示文件</button></div>
+  </form>
+</section>
+
+<section class="card" id="m5Workspace" style="display:none">
+  <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0">已上传 TXT 文件</h2>
+      <p class="muted" id="m5TaskSummary" style="margin:4px 0 0"></p>
+    </div>
+    <div class="actions" style="margin:0">
+      <a class="btn green" id="m5DownloadBtn" href="#">下载当前结果 ZIP</a>
+      <button class="btn red" type="button" onclick="m5ConfirmClearTask()">清空任务</button>
+    </div>
+  </div>
+
+  <div class="file-toolbar" style="margin-top:10px">
+    <div class="ft-left"><span class="pill open" id="m5FileCountPill">0 个文件</span></div>
+    <div class="ft-right">
+      <span class="page-info" id="m5PageInfo"></span>
+      <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:12px">每页
+        <select id="m5PageSize" onchange="m5ChangePageSize()" style="width:auto;height:28px;padding:2px 6px">
+          <option value="10">10</option><option value="50">50</option><option value="100">100</option><option value="1000">1000</option>
+        </select>
+      </label>
+      <button class="btn light sm" type="button" onclick="m5PrevPage()" id="m5PrevBtn">上一页</button>
+      <button class="btn light sm" type="button" onclick="m5NextPage()" id="m5NextBtn">下一页</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:44px">序号</th><th>文件名</th><th style="width:200px">插入号码</th><th style="width:65px">行数</th><th style="width:75px">状态</th><th style="width:75px">插入条数</th><th style="width:130px">处理方式</th><th style="width:130px">插入记录</th><th style="width:65px">操作</th></tr></thead>
+      <tbody id="m5FileTable"></tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px" id="mode5-insert-panel">
+    <h3>第二步：填写号码并执行插入</h3>
+    <label>要插入的号码（每行一条）</label>
+    <textarea id="m5Numbers" rows="8" placeholder="号码1&#10;号码2&#10;号码3"></textarea>
+    <div class="inline">
+      <div class="wide">
+        <label>插入规则</label>
+        <select id="m5Rule" onchange="m5RuleChanged()">
+          <option value="same_all">全部号码插入所有 TXT</option>
+          <option value="sequential">号码按顺序分配给每个 TXT</option>
+          <option value="per_number">每个号码进入指定数量的 TXT</option>
+          <option value="first_n">全部号码只插入前 N 个 TXT</option>
+        </select>
+      </div>
+      <div><label>插入位置</label><select id="m5Position"><option value="top">文件顶部</option><option value="bottom">文件底部</option></select></div>
+      <div><label>号码统一后缀（可选）</label><input type="text" id="m5Suffix" placeholder="例如：----A"></div>
+      <div id="m5PerFile" style="display:none"><label>每个 TXT 插入数量</label><input type="number" id="m5PerFileCount" min="1" value="1"></div>
+      <div id="m5FilesPerNumber" style="display:none"><label>每个号码进入 TXT 数量</label><input type="number" id="m5FilesPerNumberCount" min="1" value="1"></div>
+      <div id="m5TargetFiles" style="display:none"><label>目标 TXT 数量</label><input type="number" id="m5TargetFileCount" min="1" value="1"></div>
+    </div>
+    <p class="field-help" id="m5RuleHelp">每一个上传的 TXT 都会插入输入框中的全部号码。</p>
+    <div class="actions"><button class="btn orange" id="m5InsertBtn" type="button" onclick="m5Insert()">执行插入</button></div>
+  </div>
+</section>
+
+<div class="modal" id="m5PreviewModal"><div class="modal-box"><div class="modal-head"><strong id="m5PreviewTitle">TXT 预览</strong><button class="btn light sm" type="button" onclick="m5ClosePreview()">关闭</button></div><div class="modal-content" id="m5PreviewContent"></div></div></div>
+
+<section class="card">
+  <h3>处理说明</h3>
+  <div class="muted">
+    <p>只读取 ZIP 内的 TXT；同名 TXT 自动添加 _2、_3，避免覆盖。所有空行会被清理。</p>
+    <p>单次上传上限约 200MB，ZIP 解压后的 TXT 总大小上限 500MB。导出的 TXT 最后一条号码后不会增加空行。</p>
+  </div>
+</section>
+
+<style>
+.selected-file-note{margin-top:7px;color:#475569;font-size:12px;line-height:1.6;word-break:break-all}
+.m5-records{max-width:360px;max-height:180px;overflow:auto;white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);padding:7px;border-radius:5px;font-size:11px;line-height:1.5}
+.m5-lines{max-width:300px;max-height:150px;overflow:auto;white-space:pre-wrap;font-family:Consolas,monospace;font-size:11px;background:#f8fafc;padding:6px;border-radius:5px}
+.file-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.file-toolbar .ft-left,.file-toolbar .ft-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.page-info{font-size:12px;color:var(--muted)}
+.m5-file-name{font-weight:800;font-size:13px;word-break:break-all}.m5-number-line{display:block;font-family:Consolas,monospace;font-size:11px;line-height:1.45}
+</style>
+
+<script>
+var m5Task=null,m5CurrentPage=1,m5PageSize=10;
+function m5ShowSelected(input,targetId){
+  var names=Array.from(input.files||[]).map(function(f){return f.name;});
+  var target=document.getElementById(targetId);
+  if(names.length) target.textContent='已选择：'+names.join('、');
+}
+document.getElementById('m5UploadForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  var btn=document.getElementById('m5UploadBtn');
+  btn.disabled=true; btn.textContent='正在解析文件...';
+  try{
+    var resp=await fetch('/mode5/prepare',{method:'POST',body:new FormData(e.target)});
+    var data=await resp.json();
+    if(!resp.ok||!data.ok) throw new Error(data.error||'上传失败');
+    m5Task=data.task;
+    try{localStorage.setItem('shanmao_mode5_active_task',m5Task.task_id);}catch(e){}
+    m5CurrentPage=1;
+    m5RenderTask();
+    document.getElementById('m5Workspace').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){alert(err.message||String(err));}
+  finally{btn.disabled=false;btn.textContent='上传并展示文件';}
+});
+function m5RenderTask(){
+  if(!m5Task)return;
+  document.getElementById('m5Workspace').style.display='block';
+  document.getElementById('m5TaskSummary').textContent='共 '+m5Task.files.length+' 个 TXT，上传时间：'+m5Task.created_at;
+  document.getElementById('m5FileCountPill').textContent=m5Task.files.length+' 个文件';
+  document.getElementById('m5DownloadBtn').href='/mode5/download/'+m5Task.task_id;
+  var tbody=document.getElementById('m5FileTable'); tbody.innerHTML='';
+  var totalPages=Math.max(1,Math.ceil(m5Task.files.length/m5PageSize));if(m5CurrentPage>totalPages)m5CurrentPage=totalPages;
+  var start=(m5CurrentPage-1)*m5PageSize,end=Math.min(start+m5PageSize,m5Task.files.length);
+  m5Task.files.slice(start,end).forEach(function(file){
+    var tr=document.createElement('tr');
+    tr.className='file-row';
+    m5Cell(tr,String(file.index));
+    var nameTd=document.createElement('td');var nameSpan=document.createElement('span');nameSpan.className='m5-file-name';nameSpan.textContent=file.name;nameTd.appendChild(nameSpan);tr.appendChild(nameTd);
+    var linesTd=document.createElement('td');
+    if(file.inserted_lines&&file.inserted_lines.length){
+      file.inserted_lines.slice(0,2).forEach(function(line){var span=document.createElement('span');span.className='m5-number-line';span.textContent=line;linesTd.appendChild(span);});
+      if(file.inserted_lines.length>2){var details=document.createElement('details');var summary=document.createElement('summary');summary.textContent='查看全部 '+file.inserted_lines.length+' 条';details.appendChild(summary);var pre=document.createElement('div');pre.className='m5-lines';pre.textContent=file.inserted_lines.join('\n');details.appendChild(pre);linesTd.appendChild(details);}
+    }else{linesTd.textContent='—';} tr.appendChild(linesTd);
+    m5Cell(tr,String(file.current_line_count));
+    var statusTd=document.createElement('td');var pill=document.createElement('span');pill.className='pill '+(file.inserted_count?'inserted':'open');pill.textContent=file.inserted_count?'已插入':'待处理';statusTd.appendChild(pill);tr.appendChild(statusTd);
+    m5Cell(tr,file.inserted_count?String(file.inserted_count):'—');
+    var lastRecord=file.records&&file.records.length?file.records[file.records.length-1]:null;m5Cell(tr,lastRecord?lastRecord.rule:'—');
+    var recordTd=document.createElement('td');
+    if(file.records&&file.records.length){
+      var details2=document.createElement('details');var summary2=document.createElement('summary');summary2.textContent=file.records.length+' 次操作';details2.appendChild(summary2);
+      var box=document.createElement('div');box.className='m5-records';
+      box.textContent=file.records.map(function(r,i){return (i+1)+'. '+r.created_at+'｜'+r.rule+'｜'+r.position+'｜'+r.count+' 条\n'+r.lines.join('\n');}).join('\n\n');
+      details2.appendChild(box);recordTd.appendChild(details2);
+    }else{recordTd.textContent='—';} tr.appendChild(recordTd);
+    var actionTd=document.createElement('td');var previewBtn=document.createElement('button');previewBtn.className='btn sm light';previewBtn.type='button';previewBtn.textContent='预览';previewBtn.onclick=function(){m5PreviewFile(file.index);};actionTd.appendChild(previewBtn);tr.appendChild(actionTd);tbody.appendChild(tr);
+  });
+  document.getElementById('m5PageInfo').textContent='第 '+m5CurrentPage+' / '+totalPages+' 页 · 显示 '+(m5Task.files.length?start+1:0)+'-'+end+' / '+m5Task.files.length;
+  document.getElementById('m5PrevBtn').disabled=m5CurrentPage<=1;document.getElementById('m5NextBtn').disabled=m5CurrentPage>=totalPages;
+}
+function m5Cell(tr,text){var td=document.createElement('td');td.textContent=text;tr.appendChild(td);}
+function m5ChangePageSize(){m5PageSize=Number(document.getElementById('m5PageSize').value)||10;m5CurrentPage=1;m5RenderTask();}
+function m5PrevPage(){if(m5CurrentPage>1){m5CurrentPage--;m5RenderTask();document.getElementById('m5Workspace').scrollIntoView({behavior:'smooth'});}}
+function m5NextPage(){if(m5Task&&m5CurrentPage<Math.ceil(m5Task.files.length/m5PageSize)){m5CurrentPage++;m5RenderTask();document.getElementById('m5Workspace').scrollIntoView({behavior:'smooth'});}}
+async function m5PreviewFile(index){
+  var modal=document.getElementById('m5PreviewModal'),title=document.getElementById('m5PreviewTitle'),body=document.getElementById('m5PreviewContent');
+  title.textContent='读取中...';body.textContent='';modal.classList.add('open');
+  try{var resp=await fetch('/mode5/preview/'+m5Task.task_id+'/'+index);var data=await resp.json();if(!resp.ok||!data.ok)throw new Error(data.error||'读取失败');title.textContent=data.filename+' · '+data.line_count+' 行';body.textContent=data.content;}catch(err){title.textContent='读取失败';body.textContent=err.message||String(err);}
+}
+function m5ClosePreview(){document.getElementById('m5PreviewModal').classList.remove('open');}
+function m5RuleChanged(){
+  var rule=document.getElementById('m5Rule').value;
+  document.getElementById('m5PerFile').style.display=rule==='sequential'?'block':'none';
+  document.getElementById('m5FilesPerNumber').style.display=rule==='per_number'?'block':'none';
+  document.getElementById('m5TargetFiles').style.display=rule==='first_n'?'block':'none';
+  var helps={same_all:'每一个上传的 TXT 都会插入输入框中的全部号码。',sequential:'按文件顺序消耗号码，每个 TXT 获得指定数量。',per_number:'第一个号码进入前几个 TXT，下一个号码继续进入后面的 TXT。',first_n:'只向前 N 个 TXT 插入全部号码，其余文件保持原样。'};
+  document.getElementById('m5RuleHelp').textContent=helps[rule]||'';
+}
+async function m5Insert(){
+  if(!m5Task){alert('请先上传文件');return;}
+  var numbers=document.getElementById('m5Numbers').value.trim();if(!numbers){alert('请填写需要插入的号码');return;}
+  var btn=document.getElementById('m5InsertBtn');btn.disabled=true;btn.textContent='正在插入...';
+  var payload={task_id:m5Task.task_id,numbers:numbers,insert_rule:document.getElementById('m5Rule').value,insert_position:document.getElementById('m5Position').value,number_suffix:document.getElementById('m5Suffix').value,per_file_count:Number(document.getElementById('m5PerFileCount').value)||1,files_per_number:Number(document.getElementById('m5FilesPerNumberCount').value)||1,target_file_count:Number(document.getElementById('m5TargetFileCount').value)||1};
+  try{
+    var resp=await fetch('/mode5/insert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});var data=await resp.json();
+    if(!resp.ok||!data.ok)throw new Error(data.error||'插入失败');m5Task=data.task;m5RenderTask();alert(data.message);
+  }catch(err){alert(err.message||String(err));}
+  finally{btn.disabled=false;btn.textContent='执行插入';}
+}
+async function m5RestoreWorkspace(){
+  var taskID='';try{taskID=localStorage.getItem('shanmao_mode5_active_task')||'';}catch(e){}
+  if(!taskID)return;
+  try{
+    var resp=await fetch('/mode5/task/'+taskID);var data=await resp.json();
+    if(!resp.ok||!data.ok)throw new Error('expired');
+    m5Task=data.task;m5RenderTask();
+  }catch(e){try{localStorage.removeItem('shanmao_mode5_active_task');}catch(ignore){}}
+}
+function m5ConfirmClearTask(){
+  if(!m5Task)return;
+  showAppConfirm({
+    title:'清空模式五任务',
+    message:'确定清空当前上传的全部 TXT、插入结果和操作记录吗？本操作不能撤回。',
+    danger:true,confirmText:'确认清空',cancelText:'取消',
+    onConfirm:m5ClearTask
+  });
+}
+async function m5ClearTask(){
+  if(!m5Task)return;
+  try{
+    var resp=await fetch('/mode5/clear/'+m5Task.task_id,{method:'POST'});var data=await resp.json();
+    if(!resp.ok||!data.ok)throw new Error(data.error||'清空失败');
+    m5Task=null;m5CurrentPage=1;
+    document.getElementById('m5Workspace').style.display='none';
+    document.getElementById('m5UploadForm').reset();
+    document.getElementById('m5UploadSelected').textContent='';
+    document.getElementById('m5Numbers').value='';document.getElementById('m5Rule').value='same_all';document.getElementById('m5Position').value='top';document.getElementById('m5Suffix').value='';
+    document.getElementById('m5PerFileCount').value='1';document.getElementById('m5FilesPerNumberCount').value='1';document.getElementById('m5TargetFileCount').value='1';m5RuleChanged();
+    try{localStorage.removeItem('shanmao_mode5_active_task');localStorage.removeItem('shanmao_form_state:'+location.pathname+location.search);}catch(e){}
+    showAppAlert({title:'已清空',message:'模式五当前任务已清空，可以重新上传文件。',confirmText:'确定'});
+  }catch(err){showAppAlert({title:'清空失败',message:err.message||String(err),confirmText:'确定'});}
+}
+document.addEventListener('DOMContentLoaded',function(){
+  m5RuleChanged();
+  m5RestoreWorkspace();
+  document.getElementById('m5PreviewModal').addEventListener('click',function(e){if(e.target===this)m5ClosePreview();});
+});
+</script>
+{{end}}

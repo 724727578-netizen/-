@@ -1,0 +1,441 @@
+{{define "content"}}
+{{if .Task}}
+<!-- ========== 任务概览状态条 ========== -->
+<section class="card" style="padding:10px 14px;margin-top:8px">
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:6px">
+    <span style="font-weight:900;font-size:13px;color:#172033">当前任务：</span><span style="font-size:13px;color:var(--brand);font-weight:800">{{.Task.FilePrefix}}</span>
+    <span class="sep" style="border-left:1px solid var(--line);height:18px"></span>
+    <span style="font-size:12px;color:#64748b;font-weight:700">{{if eq .Task.TaskMode "no_split"}}不拆分{{else}}按行数拆分{{end}}</span>
+    <span class="sep" style="border-left:1px solid var(--line);height:18px"></span>
+    <span class="stat-item"><b>{{.TotalFiles}}</b> TXT 文件</span>
+    <span class="stat-item"><b>{{.Locked}}</b> 已锁定</span>
+    <span class="stat-item"><b>{{.Unlocked}}</b> 待处理</span>
+    <span class="stat-item"><b>{{.TotalLines}}</b> 总行数</span>
+  </div>
+  <div class="actions" style="margin:0">
+    <a class="btn green sm" href="/download/{{.TaskID}}">下载 ZIP</a>
+    {{if eq .Task.TaskMode "no_split"}}<a class="btn green sm" href="/download_txt/{{.TaskID}}/1">下载 TXT</a>{{end}}
+    <form method="post" action="/shuffle_task/{{.TaskID}}/1" style="display:inline" data-confirm="确定随机打乱当前 TXT 中全部号码的顺序吗？本操作只改变号码排列顺序，不会删除或修改号码。" id="shuffleForm"><button class="btn blue sm" type="submit">随机打乱顺序</button></form>
+    {{if .HasUndo}}<form method="post" action="/undo_last_insert/{{.TaskID}}" style="display:inline"><button class="btn orange sm" type="submit">撤回</button></form>{{end}}
+    <form method="post" action="/unlock_all/{{.TaskID}}" style="display:inline" data-confirm="确定解锁全部 TXT？"><button class="btn secondary sm" type="submit">解锁</button></form>
+    <form method="post" action="/delete_all/{{.TaskID}}" style="display:inline" data-confirm="确定删除本任务下所有 TXT？删除后不可恢复。" data-danger="true"><button class="btn red sm" type="submit">删除 TXT</button></form>
+    <form method="post" action="/clear_task/{{.TaskID}}" style="display:inline" data-confirm="确定清空当前任务？当前任务的 TXT、ZIP、状态信息都会被删除。" data-danger="true"><button class="btn orange sm" type="submit">清空任务</button></form>
+  </div>
+</section>
+{{end}}
+
+<!-- ========== 创建任务 ========== -->
+<section class="card" id="mode1-create-task">
+  <div class="collapse-header" id="uploadHeader" onclick="toggleUpload()">
+    <h2 style="margin:0;font-size:14px">创建任务</h2>
+    <span class="toggle-icon" id="uploadToggle">{{if .Task}}▶{{else}}▼{{end}}</span>
+  </div>
+  <div id="uploadBody" class="collapse-body" style="max-height:{{if .Task}}0{{else}}none{{end}}">
+    <div class="section-note">上传原始总数据包 TXT，可选择按行数拆分或多个号码不拆分。</div>
+    <form method="post" action="/start_task/mode1" enctype="multipart/form-data">
+      <div class="task-mode-bar">
+        <label style="font-weight:700;font-size:13px;color:#172033;margin:0 12px 0 0">文件处理方式：</label>
+        <label class="tm-radio"><input type="radio" name="task_mode" value="split" checked onchange="onTaskModeChange()"> 按行数拆分</label>
+        <label class="tm-radio"><input type="radio" name="task_mode" value="no_split" onchange="onTaskModeChange()"> 不拆分</label>
+      </div>
+      <div class="create-task-grid">
+        <div class="ct-field ct-wide"><label>总数据包 TXT</label><input type="file" name="main_txt" accept=".txt" required></div>
+        <div class="ct-field" id="splitSizeField"><label>每个子 TXT 行数</label><input type="number" name="split_size" min="1" value="100" required></div>
+        <div class="ct-field"><label>文件名前缀</label><input type="text" name="file_prefix" value="data_" required></div>
+        <div class="ct-field ct-sm" id="indexWidthField"><label>编号位数</label><input type="number" name="index_width" min="1" max="8" value="2" required></div>
+        <div class="ct-field ct-sm" id="keepRemainderField"><label>尾包不足时</label><select name="keep_remainder"><option value="yes">保留</option><option value="no">丢弃</option></select></div>
+        <div class="ct-field ct-btn"><button class="btn" type="submit" id="submitTaskBtn">上传并拆分</button></div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- ========== 插入执行面板 ========== -->
+{{if .Task}}
+<section class="card" id="mode1-insert-panel">
+  <h2 style="font-size:14px">插入执行</h2>
+  <form method="post" action="/unified/insert" enctype="multipart/form-data" id="insertForm" onsubmit="return validateInsertForm()">
+    <input type="hidden" name="task_id" value="{{.TaskID}}">
+    <div class="insert-layout">
+      <!-- ===== 左侧：数据来源 ===== -->
+      <div class="insert-source-panel">
+        <label style="margin-top:0">上传 TXT 文件</label>
+        <input type="file" name="insert_txt" accept=".txt" id="insertFileInput">
+        <div class="field-help">上传 TXT，读取非空行作为插入内容。</div>
+        <div class="insert-or">或手动粘贴</div>
+        <label>手动粘贴内容</label>
+        <textarea name="paste_text" id="insertPasteArea" class="insert-paste-textarea"></textarea>
+        <div class="field-help">一行一条，系统自动忽略空行。</div>
+      </div>
+      <!-- ===== 右侧：分配策略 ===== -->
+      <div class="insert-strategy">
+        <label style="margin-top:0">分配策略</label>
+        <div class="strategy-bar">
+          <button class="strategy-btn active" type="button" data-strategy="all_txt" onclick="selectStrategy('all_txt')">全部 TXT</button>
+          <button class="strategy-btn" type="button" data-strategy="per_number" onclick="selectStrategy('per_number')">按号码平均</button>
+          <button class="strategy-btn" type="button" data-strategy="group_to_count" onclick="selectStrategy('group_to_count')">指定数量</button>
+        </div>
+        <input type="hidden" name="unified_strategy" value="all_txt">
+        <div class="strategy-params">
+          <div class="sp-row">
+            <div class="sp-field"><label>每个 TXT 插入几条</label><input type="number" name="insert_count" min="1" value="1"></div>
+            <div class="sp-field" id="perNumberField"><label>每个号码进入几个 TXT</label><input type="number" name="per_number_file_count" min="1" value="1"></div>
+            <div class="sp-field" id="targetCountField"><label>本次处理 TXT 数量</label><input type="number" name="target_file_count" min="1" value="1"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-field"><label>插入位置</label><select name="insert_position"><option value="top">文件开头</option><option value="bottom">文件末尾</option></select></div>
+            <div class="sp-field"><label>统一追加后缀</label><input type="text" name="number_suffix" placeholder="可选，例如 @c.us"></div>
+            <div class="sp-field"><label>内容分配方式</label><select name="insert_mode"><option value="same_for_all">相同内容</option><option value="sequential">按顺序分配</option></select></div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn" type="submit">确认执行插入</button></div>
+      </div>
+    </div>
+  </form>
+</section>
+{{end}}
+
+<!-- ========== TXT 文件列表 ========== -->
+{{if .Task}}
+<section class="card" id="mode1-file-list">
+  <h2 style="font-size:14px">TXT 文件列表</h2>
+  <div class="file-toolbar">
+    <div class="ft-left">
+      <form method="post" action="/download_selected/{{.TaskID}}" style="display:inline" id="fileExportForm" onsubmit="return validateExport()">
+        <button class="btn green sm" type="submit">导出选中</button>
+        <button class="btn light sm" type="button" onclick="selectAllFiles()">全部</button>
+        <button class="btn light sm" type="button" id="currentPageBtn" onclick="selectCurrentPage()">当前页</button>
+        <button class="btn light sm" type="button" onclick="deselectAll()">取消选择</button>
+      </form>
+    </div>
+    <div class="ft-right">
+      <button class="filter-btn active" data-filter="all" onclick="setFileFilter('all')">全部状态</button>
+      <button class="filter-btn" data-filter="unlocked" onclick="setFileFilter('unlocked')">待处理</button>
+      <button class="filter-btn" data-filter="locked" onclick="setFileFilter('locked')">已锁定</button>
+      <button class="filter-btn" data-filter="inserted" onclick="setFileFilter('inserted')">已插入</button>
+      <span class="ft-sep"></span>
+      <span class="page-info" id="pageInfo"></span>
+      <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:12px">每页
+        <select id="pageSizeSelect" onchange="changePageSize()" style="width:auto;height:28px;padding:2px 6px">
+          <option value="10">10</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="1000">1000</option>
+        </select>
+      </label>
+      <button class="btn light sm" type="button" onclick="prevPage()" id="prevBtn">上一页</button>
+      <button class="btn light sm" type="button" onclick="nextPage()" id="nextBtn">下一页</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36px"><input type="checkbox" id="selectAllCheckbox" onchange="togglePageCheckboxes(this.checked)"></th>
+          <th style="width:44px">序号</th>
+          <th>文件名</th>
+          <th style="width:190px">插入号码</th>
+          <th style="width:60px">行数</th>
+          <th style="width:70px">状态</th>
+          <th style="width:70px">插入条数</th>
+          <th style="width:100px">处理方式</th>
+          <th style="width:55px">操作</th>
+        </tr>
+      </thead>
+      <tbody id="fileTableBody">
+        {{range .Task.Files}}
+        <tr class="file-row" data-locked="{{.Locked}}" data-inserted="{{if .Inserted}}true{{else}}false{{end}}" data-index="{{.Index}}">
+          <td><input type="checkbox" name="selected_files" value="{{.Index}}" form="fileExportForm"></td>
+          <td><span class="muted" style="font-weight:800">{{.Index}}</span></td>
+          <td><span class="file-name" style="font-weight:800;font-size:13px;word-break:break-all">{{.Filename}}</span></td>
+          <td class="inserted-number-cell">{{if .InsertedLines}}{{$lc := len .InsertedLines}}{{$file := .}}{{range $i, $v := .InsertedLines}}{{if lt $i 2}}<span class="inserted-number-line">{{$v}}</span>{{if eq $i 1}}{{if gt $lc 2}}<button class="inserted-number-more" type="button" onclick="showInsertedNumbers('{{$.TaskID}}',{{$file.Index}})">查看全部</button>{{end}}{{end}}{{end}}{{end}}{{else}}-{{end}}</td>
+          <td>{{.LineCount}}</td>
+          <td><span class="pill {{if .Locked}}locked{{else}}open{{end}}">{{if .Locked}}已锁定{{else}}待处理{{end}}</span></td>
+          <td>{{if .InsertedCount}}{{.InsertedCount}}{{else}}-{{end}}</td>
+          <td><span class="muted" style="font-size:12px">{{if .BusinessMode}}{{.BusinessMode}}{{else}}-{{end}}</span></td>
+          <td><button class="btn sm light" type="button" onclick="previewFile('{{$.TaskID}}','{{.Index}}')">预览</button></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <div class="file-footer">
+    <span id="footerInfo" class="muted"></span>
+    <div class="ft-right">
+      <button class="btn light sm" type="button" onclick="prevPage()">上一页</button>
+      <button class="btn light sm" type="button" onclick="nextPage()">下一页</button>
+    </div>
+  </div>
+</section>
+{{end}}
+
+<!-- ========== 预览模态框 ========== -->
+<div class="modal" id="previewModal"><div class="modal-box"><div class="modal-head"><strong id="previewTitle">TXT 预览</strong><button class="btn light sm" onclick="closePreview()">关闭</button></div><div class="modal-content" id="previewContent"></div></div></div>
+
+<!-- ========== 插入号码详情弹窗 ========== -->
+<div class="num-detail-mask" id="numDetailMask">
+  <div class="num-detail-box">
+    <div class="num-detail-head">
+      <strong>插入号码详情</strong>
+      <button class="btn light sm" onclick="closeNumDetail()">关闭</button>
+    </div>
+    <div class="num-detail-meta" id="numDetailMeta"></div>
+    <div class="num-detail-body" id="numDetailBody"></div>
+    <div class="num-detail-foot"><button class="btn light" onclick="closeNumDetail()">关闭</button></div>
+  </div>
+</div>
+
+<style>
+/* 创建任务网格 */
+.task-mode-bar{display:flex;align-items:center;padding:10px 0 6px;flex-wrap:wrap;gap:6px}
+.tm-radio{display:inline-flex;align-items:center;gap:4px;margin:0 16px 0 0;font-size:13px;font-weight:600;color:#334155;cursor:pointer}
+.tm-radio input[type="radio"]{accent-color:var(--brand);width:16px;height:16px;cursor:pointer}
+.create-task-grid{display:grid;grid-template-columns:minmax(360px,2fr) 160px 200px 120px 160px auto;gap:12px;align-items:end;margin-top:8px}
+.ct-field label{margin:0 0 3px}.ct-field input,.ct-field select{height:36px}.ct-btn{align-self:end;padding-bottom:0}.ct-btn .btn{margin-top:0;white-space:nowrap}
+@media(max-width:1100px){.create-task-grid{grid-template-columns:1fr 1fr}.ct-wide{grid-column:1/-1}}
+/* 插入面板布局 */
+.insert-layout{display:grid;grid-template-columns:520px minmax(0,1fr);gap:24px;align-items:start}
+.insert-source-panel{max-width:520px;border-right:1px solid var(--line);padding-right:24px}
+.insert-or{text-align:center;color:var(--muted);font-size:12px;font-weight:800;padding:6px 0;position:relative}
+.insert-or::before,.insert-or::after{content:'';position:absolute;top:50%;width:calc(50% - 30px);height:1px;background:var(--line)}
+.insert-or::before{left:0}.insert-or::after{right:0}
+.insert-paste-textarea{width:420px;max-width:100%;height:220px;min-height:220px;max-height:220px;overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:22px;font-size:13px;resize:none}
+/* 策略参数字段 */
+.strategy-params{margin-top:6px}
+.sp-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px}
+.sp-field label{margin:4px 0 3px}.sp-field input,.sp-field select{height:34px;font-size:13px}
+/* 文件列表工具栏 */
+.file-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:8px 0}
+.ft-left,.ft-right{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.ft-sep{border-left:1px solid var(--line);height:20px;margin:0 2px}
+.page-info{font-size:12px;color:var(--muted);font-weight:800}
+.file-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:8px}
+/* 插入号码列 */
+.inserted-number-cell{width:190px;max-width:190px;font-size:12px;line-height:18px;overflow:hidden;color:#334155}
+.inserted-number-line{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px;font-size:12px}
+.inserted-number-more{display:inline;margin-left:2px;font-size:12px;color:#2563eb;cursor:pointer;font-weight:700;background:none;border:0;padding:0;line-height:18px}
+/* 插入号码详情弹窗 */
+.num-detail-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:25;padding:20px}.num-detail-mask.open{display:flex}
+.num-detail-box{background:#fff;border-radius:10px;width:460px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.num-detail-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.num-detail-head strong{font-size:15px;font-weight:900;color:#172033}
+.num-detail-meta{padding:10px 20px;font-size:12px;color:#64748b;line-height:1.6;border-bottom:1px solid #f1f5f9}
+.num-detail-body{padding:14px 20px;overflow-y:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.8;flex:1;min-height:60px;max-height:400px}
+.num-detail-foot{padding:12px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+@media(max-width:1100px){.insert-layout{grid-template-columns:1fr}.insert-source-panel{max-width:100%;border-right:0;padding-right:0}.sp-row{grid-template-columns:1fr 1fr}.file-toolbar{flex-direction:column;align-items:stretch}}
+.btn.blue{background:#2563eb;color:#fff}.btn.blue:hover{background:#1d4ed8}
+</style>
+
+<script>
+// ========== 任务模式切换 ==========
+function onTaskModeChange(){
+  var mode=document.querySelector('input[name="task_mode"]:checked').value;
+  var splitFields=['splitSizeField','indexWidthField','keepRemainderField'];
+  var btn=document.getElementById('submitTaskBtn');
+  splitFields.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.style.display=mode==='no_split'?'none':'';
+  });
+  if(mode==='no_split'){
+    btn.textContent='上传并创建任务';
+  }else{
+    btn.textContent='上传并拆分';
+  }
+}
+
+// ========== 上传折叠 ==========
+function toggleUpload(){
+  var body=document.getElementById('uploadBody');
+  var icon=document.getElementById('uploadToggle');
+  if(body.style.maxHeight==='0px'||body.style.maxHeight==='0'){
+    body.style.maxHeight='600px';icon.textContent='▼';
+  }else{
+    body.style.maxHeight='0px';icon.textContent='▶';
+  }
+}
+
+// ========== 插入表单校验 ==========
+function validateInsertForm(){
+  var fileInput=document.getElementById('insertFileInput');
+  var pasteArea=document.getElementById('insertPasteArea');
+  var hasFile=fileInput.files.length>0;
+  var hasPaste=pasteArea.value.trim()!=='';
+  if(!hasFile&&!hasPaste){
+    showAppAlert({title:'提示',message:'请先上传 TXT 文件或手动粘贴内容。',confirmText:'我知道了'});
+    return false;
+  }
+  if(hasFile&&hasPaste){
+    showAppAlert({title:'提示',message:'检测到你同时上传了 TXT 文件并填写了手动粘贴内容，请只保留一种插入数据来源。',confirmText:'我知道了'});
+    return false;
+  }
+  showAppConfirm({title:'操作确认',message:'确定执行插入？',confirmText:'确定',cancelText:'取消',danger:false,onConfirm:function(){document.getElementById('insertForm').submit();}});
+  return false;
+}
+
+// ========== 分配策略 ==========
+function selectStrategy(s){
+  document.querySelectorAll('.strategy-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.strategy===s);
+  });
+  document.querySelectorAll('input[name="unified_strategy"]').forEach(function(i){i.value=s;});
+  document.getElementById('perNumberField').style.display=s==='per_number'?'block':'none';
+  document.getElementById('targetCountField').style.display=s==='group_to_count'?'block':'none';
+}
+
+// ========== 分页 ==========
+var currentPage=1;
+var pageSize=10;
+var currentFilter='all';
+
+function getFilteredRows(){
+  var rows=Array.from(document.querySelectorAll('.file-row'));
+  if(currentFilter==='all') return rows;
+  return rows.filter(function(r){
+    var locked=r.dataset.locked==='true';
+    var inserted=r.dataset.inserted==='true';
+    if(currentFilter==='unlocked') return !locked;
+    if(currentFilter==='locked') return locked;
+    if(currentFilter==='inserted') return inserted;
+    return true;
+  });
+}
+
+function renderPage(){
+  var rows=getFilteredRows();
+  var total=rows.length;
+  var totalPages=Math.max(1,Math.ceil(total/pageSize));
+  if(currentPage>totalPages) currentPage=totalPages;
+  if(currentPage<1) currentPage=1;
+  var start=(currentPage-1)*pageSize;
+  var end=Math.min(start+pageSize,total);
+  // 隐藏所有行
+  document.querySelectorAll('.file-row').forEach(function(r){r.style.display='none';});
+  // 显示当前页行
+  rows.slice(start,end).forEach(function(r){r.style.display='';});
+  // 更新表头 checkbox
+  var pageRows=rows.slice(start,end);
+  var allChecked=pageRows.length>0&&pageRows.every(function(r){
+    return r.querySelector('input[name="selected_files"]').checked;
+  });
+  document.getElementById('selectAllCheckbox').checked=allChecked;
+  // 更新信息
+  document.getElementById('pageInfo').textContent='第 '+currentPage+'/'+totalPages+' 页';
+  document.getElementById('footerInfo').textContent='共 '+total+' 个 TXT，当前显示 '+(start+1)+' - '+end+' 个';
+  document.getElementById('prevBtn').disabled=currentPage<=1;
+  document.getElementById('nextBtn').disabled=currentPage>=totalPages;
+  updateSelectBtn();
+}
+function changePageSize(){
+  pageSize=parseInt(document.getElementById('pageSizeSelect').value);
+  currentPage=1;
+  renderPage();
+}
+function prevPage(){
+  if(currentPage>1){currentPage--;renderPage();}
+}
+function nextPage(){
+  var totalPages=Math.max(1,Math.ceil(getFilteredRows().length/pageSize));
+  if(currentPage<totalPages){currentPage++;renderPage();}
+}
+
+// ========== 筛选 ==========
+function setFileFilter(filter){
+  currentFilter=filter;
+  currentPage=1;
+  document.querySelectorAll('.filter-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.filter===filter);
+  });
+  renderPage();
+}
+
+// ========== 全选逻辑 ==========
+function getCurrentPageRows(){
+  var rows=getFilteredRows();
+  var start=(currentPage-1)*pageSize;
+  var end=Math.min(start+pageSize,rows.length);
+  return rows.slice(start,end);
+}
+function selectAllFiles(){
+  document.querySelectorAll('.file-row input[name="selected_files"]').forEach(function(cb){cb.checked=true;});
+  updateTableHeadCheckbox();
+}
+function selectCurrentPage(){
+  getCurrentPageRows().forEach(function(r){
+    r.querySelector('input[name="selected_files"]').checked=true;
+  });
+  updateTableHeadCheckbox();
+}
+function deselectAll(){
+  document.querySelectorAll('input[name="selected_files"]').forEach(function(i){i.checked=false;});
+  document.getElementById('selectAllCheckbox').checked=false;
+}
+function togglePageCheckboxes(checked){
+  getCurrentPageRows().forEach(function(r){
+    r.querySelector('input[name="selected_files"]').checked=checked;
+  });
+}
+function updateTableHeadCheckbox(){
+  var rows=getCurrentPageRows();
+  var allChecked=rows.length>0&&rows.every(function(r){
+    return r.querySelector('input[name="selected_files"]').checked;
+  });
+  document.getElementById('selectAllCheckbox').checked=allChecked;
+}
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('input[name="selected_files"]').forEach(function(i){
+    i.addEventListener('change',updateTableHeadCheckbox);
+  });
+  renderPage();
+});
+
+// ========== 导出校验 ==========
+function validateExport(){
+  var checked=document.querySelectorAll('input[name="selected_files"]:checked').length;
+  if(checked===0){showAppAlert({title:'提示',message:'请先选择需要导出的 TXT 文件。',confirmText:'我知道了'});return false;}
+  return true;
+}
+
+// ========== 预览 ==========
+async function previewFile(taskID,index){
+  var modal=document.getElementById('previewModal');
+  var title=document.getElementById('previewTitle');
+  var body=document.getElementById('previewContent');
+  title.textContent='读取中...';body.textContent='';modal.classList.add('open');
+  var resp=await fetch('/file_preview/'+taskID+'/'+index);
+  var data=await resp.json();
+  if(!data.ok){title.textContent='读取失败';body.textContent=data.error||'未知错误';return;}
+  title.textContent=data.filename+' · '+data.line_count+' 行';body.textContent=data.content;
+}
+function closePreview(){document.getElementById('previewModal').classList.remove('open')}
+document.addEventListener('DOMContentLoaded',function(){
+  document.getElementById('previewModal').addEventListener('click',function(e){
+    if(e.target===this) closePreview();
+  });
+});
+
+// ========== 插入号码详情 ==========
+function closeNumDetail(){document.getElementById('numDetailMask').classList.remove('open')}
+
+async function showInsertedNumbers(taskID,index){
+  var mask=document.getElementById('numDetailMask');
+  var meta=document.getElementById('numDetailMeta');
+  var body=document.getElementById('numDetailBody');
+  meta.textContent='读取中...';body.textContent='';mask.classList.add('open');
+  try{
+    var resp=await fetch('/inserted_lines/'+taskID+'/'+index);
+    var data=await resp.json();
+    if(!data.ok){meta.textContent='读取失败';body.textContent=data.error||'未知错误';return;}
+    meta.textContent='文件名：'+data.filename+'　　插入数量：'+data.count+' 条';
+    body.textContent=data.inserted_lines.join('\n');
+  }catch(e){
+    meta.textContent='读取失败';body.textContent='网络错误';
+  }
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  document.getElementById('numDetailMask').addEventListener('click',function(e){
+    if(e.target===this) closeNumDetail();
+  });
+});
+</script>
+{{end}}

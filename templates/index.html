@@ -1,0 +1,265 @@
+{{define "content"}}
+<section class="grid two">
+  <div class="card">
+    <h2>业务模式一</h2>
+    <p class="muted">上传总数据 TXT，按行数拆分成多个子 TXT；后续可统一插入号码、自动锁定、撤回上一次插入并导出 ZIP。</p>
+    <div class="actions"><a class="btn" href="/mode1">进入业务模式一</a></div>
+  </div>
+  <div class="card">
+    <h2>业务模式二</h2>
+    <p class="muted">粘贴混乱的 WS / WhatsApp 群链接，自动清洗出邀请链接，并可批量检测可用性。</p>
+    <div class="actions"><a class="btn green" href="/mode2">进入业务模式二</a></div>
+  </div>
+  <div class="card">
+    <h2>业务模式四</h2>
+    <p class="muted">多组号码组合，支持对齐模式（align）和固定模式（fixed），自动将多组号码按规则组合成结果。</p>
+    <div class="actions"><a class="btn orange" href="/mode4">进入业务模式四</a></div>
+  </div>
+  <div class="card">
+    <h2>业务模式五</h2>
+    <p class="muted">把 ZIP 或批量 TXT 中的号码整理到一个 TXT；也可向批量 TXT 按不同规则插入号码并导出 ZIP。</p>
+    <div class="actions"><a class="btn" href="/mode5">进入业务模式五</a></div>
+  </div>
+  <div class="card">
+    <h2>业务模式六</h2>
+    <p class="muted">上传总数据包，按“每个 TXT 数量 × TXT 文件数量”连续取数；自动记录、预览并下载 ZIP。</p>
+    <div class="actions"><a class="btn red" href="/mode6">进入业务模式六</a></div>
+  </div>
+</section>
+
+<section class="card" id="historySection">
+  <h2 style="display:inline-block;margin-bottom:4px">历史任务</h2>
+  {{if .Summaries}}
+  <div class="history-header">
+    <span class="muted" id="historyTotal">共 {{len .Summaries}} 个任务</span>
+    <div class="history-search">
+      <input type="text" id="searchInput" placeholder="搜索任务名称..." oninput="onHistorySearch()">
+    </div>
+  </div>
+
+  <form id="historyDeleteForm" method="post" action="/delete_tasks" onsubmit="return confirmDeleteHistoryTasks()">
+    <div class="history-toolbar">
+      <label class="history-select-all"><input type="checkbox" id="historySelectAll" onchange="onHistorySelectAll(this.checked)"> 全选</label>
+      <button class="btn red sm" type="submit">删除选中</button>
+      <span class="muted" id="selectAllHint" style="display:none;margin-left:8px;cursor:pointer" onclick="selectAllFiltered()"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px"></th>
+            <th class="sortable" data-sort="name" onclick="sortHistory('name')">任务名称 <span class="sort-icon" id="sort-name"></span></th>
+            <th>类型</th>
+            <th class="sortable" data-sort="created" onclick="sortHistory('created')">创建时间 <span class="sort-icon" id="sort-created"></span></th>
+            <th class="sortable" data-sort="files" onclick="sortHistory('files')">TXT数量 <span class="sort-icon" id="sort-files"></span></th>
+            <th class="sortable" data-sort="locked" onclick="sortHistory('locked')">已锁定 <span class="sort-icon" id="sort-locked"></span></th>
+            <th class="sortable" data-sort="lines" onclick="sortHistory('lines')">总行数 <span class="sort-icon" id="sort-lines"></span></th>
+            <th>状态</th>
+            <th>最近修改</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="history-footer">
+      <div class="ft-left"><span class="page-info" id="historyPageInfo"></span></div>
+      <div class="ft-right">
+        <button class="btn light sm" onclick="prevHistoryPage()" id="historyPrevBtn">上一页</button>
+        <span class="page-info" id="historyPageNum" style="margin:0 6px"></span>
+        <button class="btn light sm" onclick="nextHistoryPage()" id="historyNextBtn">下一页</button>
+        <span class="ft-sep"></span>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;margin:0">每页
+          <select id="historyPageSize" onchange="changeHistoryPageSize()" style="width:auto;height:28px;padding:2px 6px">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </form>
+
+  <style>
+.history-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 10px}
+.history-search input{width:260px;height:32px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff}
+.history-search input:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 2px rgba(37,99,235,.12)}
+.history-toolbar{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap}
+.history-select-all{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;cursor:pointer;margin:0}
+.history-select-all input{width:auto;height:auto;margin:0}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{color:var(--brand)}
+.sort-icon{font-size:10px;margin-left:2px;color:var(--muted)}
+.history-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-top:8px}
+.history-footer .ft-sep{border-left:1px solid var(--line);height:20px;margin:0 6px}
+@media(max-width:820px){.history-search input{width:100%}}
+  </style>
+
+  <script>
+var historyData = {{.Summaries | json}};
+var historyCurrentPage = 1;
+var historyPageSize = 10;
+var historySearchQuery = '';
+var historySortBy = 'created';
+var historySortAsc = false;
+
+function getFilteredData(){
+  var data=historyData;
+  if(historySearchQuery){
+    var q=historySearchQuery.toLowerCase();
+    data=data.filter(function(t){return (t.FilePrefix||'').toLowerCase().includes(q);});
+  }
+  data.sort(function(a,b){
+    var va,vb;
+    switch(historySortBy){
+      case 'name':va=(a.FilePrefix||'').toLowerCase();vb=(b.FilePrefix||'').toLowerCase();break;
+      case 'created':va=a.CreatedAt;vb=b.CreatedAt;break;
+      case 'files':va=a.TotalFiles;vb=b.TotalFiles;break;
+      case 'locked':va=a.LockedCount;vb=b.LockedCount;break;
+      case 'lines':va=a.TotalLines;vb=b.TotalLines;break;
+      default:va=a.CreatedAt;vb=b.CreatedAt;
+    }
+    if(typeof va==='string') return historySortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    return historySortAsc?va-vb:vb-va;
+  });
+  return data;
+}
+
+function esc(s){if(!s)return '';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function renderHistoryTable(){
+  var data=getFilteredData();
+  var total=data.length;
+  var totalPages=Math.max(1,Math.ceil(total/historyPageSize));
+  if(historyCurrentPage>totalPages)historyCurrentPage=totalPages;
+  if(historyCurrentPage<1)historyCurrentPage=1;
+  var start=(historyCurrentPage-1)*historyPageSize;
+  var end=Math.min(start+historyPageSize,total);
+  var pageData=data.slice(start,end);
+  var tbody=document.getElementById('historyTableBody');
+  tbody.innerHTML='';
+  for(var i=0;i<pageData.length;i++){
+    var t=pageData[i];
+    var st='进行中',sc='open';
+    if(t.TotalFiles===0){st='空任务';sc='';}
+    else if(t.TotalFiles===t.LockedCount){st='已完成';sc='locked';}
+    var tr=document.createElement('tr');
+    var typeLabel='模式一',typePath='mode1';
+    if(t.EntryMode==='mode2'){typeLabel='模式二';typePath='mode2';}
+    else if(t.EntryMode==='mode3'){typeLabel='模式三';typePath='mode3';}
+    tr.innerHTML='<td><input type="checkbox" class="history-checkbox" value="'+t.TaskID+'"></td>'+
+      '<td><span style="font-weight:800;font-size:13px">'+esc(t.FilePrefix||t.ShortID)+'</span></td>'+
+      '<td class="muted">'+typeLabel+'</td>'+
+      '<td class="muted">'+esc(t.CreatedAt)+'</td>'+
+      '<td>'+t.TotalFiles+'</td>'+
+      '<td>'+t.LockedCount+'</td>'+
+      '<td>'+t.TotalLines+'</td>'+
+      '<td><span class="pill '+sc+'">'+st+'</span></td>'+
+      '<td class="muted">'+esc(t.LastModified)+'</td>'+
+      '<td><a class="btn light sm" href="/'+typePath+'/'+t.TaskID+'">打开任务</a></td>';
+    tbody.appendChild(tr);
+  }
+  var info=document.getElementById('historyPageInfo');
+  info.textContent=total>0?'当前显示 '+(start+1)+' - '+end+'，共 '+total+' 个':'无匹配任务';
+  document.getElementById('historyPageNum').textContent=totalPages>0?'第 '+historyCurrentPage+' / '+totalPages+' 页':'';
+  document.getElementById('historyPrevBtn').disabled=historyCurrentPage<=1;
+  document.getElementById('historyNextBtn').disabled=historyCurrentPage>=totalPages;
+  updateSelectAllHint(data,total);
+  updateHistorySelectAllCheckbox();
+}
+
+function updateSelectAllHint(filteredData,total){
+  var hint=document.getElementById('selectAllHint');
+  var checkedOnPage=document.querySelectorAll('#historyTableBody .history-checkbox:checked').length;
+  var checkedAll=document.querySelectorAll('.history-checkbox:checked').length;
+  if(checkedOnPage>0&&checkedAll<total){
+    hint.style.display='inline';
+    hint.textContent='选择全部 '+total+' 个符合条件的结果';
+  }else{
+    hint.style.display='none';
+  }
+}
+
+function updateHistorySelectAllCheckbox(){
+  var cbs=document.querySelectorAll('#historyTableBody .history-checkbox');
+  var ckd=document.querySelectorAll('#historyTableBody .history-checkbox:checked');
+  document.getElementById('historySelectAll').checked=cbs.length>0&&cbs.length===ckd.length;
+}
+
+function onHistorySelectAll(checked){
+  document.querySelectorAll('#historyTableBody .history-checkbox').forEach(function(cb){cb.checked=checked;});
+  var data=getFilteredData();
+  updateSelectAllHint(data,data.length);
+}
+
+function selectAllFiltered(){
+  var data=getFilteredData();
+  document.querySelectorAll('.history-checkbox').forEach(function(cb){cb.checked=false;});
+  data.forEach(function(t){
+    document.querySelectorAll('.history-checkbox').forEach(function(cb){
+      if(cb.value===t.TaskID)cb.checked=true;
+    });
+  });
+  document.getElementById('selectAllHint').style.display='none';
+  updateHistorySelectAllCheckbox();
+}
+
+function onHistorySearch(){
+  historySearchQuery=document.getElementById('searchInput').value;
+  historyCurrentPage=1;
+  renderHistoryTable();
+}
+
+function sortHistory(field){
+  if(historySortBy===field){historySortAsc=!historySortAsc;}
+  else{historySortBy=field;historySortAsc=false;}
+  document.querySelectorAll('.sort-icon').forEach(function(el){
+    var f=el.id.replace('sort-','');
+    el.textContent=f===field?(historySortAsc?' ↑':' ↓'):'';
+  });
+  historyCurrentPage=1;
+  renderHistoryTable();
+}
+
+function prevHistoryPage(){if(historyCurrentPage>1){historyCurrentPage--;renderHistoryTable();}}
+function nextHistoryPage(){
+  var totalPages=Math.max(1,Math.ceil(getFilteredData().length/historyPageSize));
+  if(historyCurrentPage<totalPages){historyCurrentPage++;renderHistoryTable();}
+}
+function changeHistoryPageSize(){
+  historyPageSize=parseInt(document.getElementById('historyPageSize').value);
+  historyCurrentPage=1;
+  renderHistoryTable();
+}
+
+function confirmDeleteHistoryTasks(){
+  var checked=document.querySelectorAll('.history-checkbox:checked');
+  if(checked.length===0){showAppAlert({title:'提示',message:'请至少勾选一个历史任务再删除',confirmText:'我知道了'});return false;}
+  document.querySelectorAll('#historyDeleteForm input[name="task_ids"]').forEach(function(el){el.remove();});
+  var form=document.getElementById('historyDeleteForm');
+  checked.forEach(function(cb){
+    var inp=document.createElement('input');
+    inp.type='hidden';inp.name='task_ids';inp.value=cb.value;
+    form.appendChild(inp);
+  });
+  showAppConfirm({title:'危险操作确认',message:'确定删除选中的 '+checked.length+' 个历史任务？删除后对应 TXT 和 ZIP 文件也会一起删除。',confirmText:'确认删除',danger:true,cancelText:'取消',onConfirm:function(){form.submit();}});
+  return false;
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  renderHistoryTable();
+  document.getElementById('historyTableBody').addEventListener('change',function(e){
+    if(e.target.classList.contains('history-checkbox')){
+      updateHistorySelectAllCheckbox();
+      var data=getFilteredData();
+      updateSelectAllHint(data,data.length);
+    }
+  });
+});
+  </script>
+  {{else}}<p class="muted" style="margin-top:6px">还没有历史任务。</p>{{end}}
+</section>
+{{end}}

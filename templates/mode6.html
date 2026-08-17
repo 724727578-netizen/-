@@ -1,0 +1,171 @@
+{{define "content"}}
+<section class="card">
+  <h2>第一步：上传总数据包</h2>
+  <p class="section-note">支持单个 TXT，或包含多个 TXT 的 ZIP。系统会按文件名顺序合并数据、忽略空行，并从第一条开始连续取数。</p>
+  <form id="m6UploadForm" enctype="multipart/form-data">
+    <div class="inline">
+      <div class="wide">
+        <label for="m6Package">总数据包</label>
+        <input id="m6Package" name="total_package" type="file" accept=".txt,.zip" required data-no-persist="true">
+        <div class="field-help">单个上传文件最大 200MB；ZIP 解压后的 TXT 总大小最大 500MB。</div>
+      </div>
+      <button class="btn" id="m6UploadBtn" type="submit">上传并创建取数任务</button>
+    </div>
+  </form>
+</section>
+
+<section id="m6Workspace" style="display:none">
+  <section class="card">
+    <div class="m6-head">
+      <div>
+        <h2 style="margin-bottom:5px">当前总数据</h2>
+        <div class="muted" id="m6SourceInfo"></div>
+      </div>
+      <button type="button" class="btn red sm" onclick="m6ConfirmClear()">清除当前任务</button>
+    </div>
+    <div class="m6-stats">
+      <div class="m6-stat"><span>总数量</span><b id="m6Total">0</b></div>
+      <div class="m6-stat used"><span>已取数量</span><b id="m6Used">0</b></div>
+      <div class="m6-stat remain"><span>剩余数量</span><b id="m6Remain">0</b></div>
+      <div class="m6-stat"><span>取数记录</span><b id="m6RecordCount">0</b></div>
+    </div>
+  </section>
+
+  <section class="card" id="m6TakeSection">
+    <h2>第二步：设置取数要求</h2>
+    <p class="section-note">本次取出总数 = 每个 TXT 的数量 × TXT 文件数量。成功后这些数据会记为“已取”，下次不会重复。</p>
+    <div class="grid m6-form-grid">
+      <div>
+        <label for="m6PerFile">每个 TXT 的号码数量</label>
+        <input id="m6PerFile" type="number" min="1" value="100" inputmode="numeric">
+      </div>
+      <div>
+        <label for="m6FileCount">要取多少个 TXT 文件</label>
+        <input id="m6FileCount" type="number" min="1" value="1" inputmode="numeric">
+      </div>
+      <div>
+        <label for="m6Prefix">输出文件名前缀</label>
+        <input id="m6Prefix" type="text" value="取数" maxlength="80" placeholder="例如：客户A">
+      </div>
+    </div>
+    <div class="m6-calc">本次将取出 <b id="m6Needed">100</b> 条，生成 <b id="m6FilesLabel">1</b> 个 TXT。</div>
+    <div class="actions"><button type="button" class="btn green" id="m6TakeBtn" onclick="m6TakeData()">开始取数并打包</button></div>
+  </section>
+
+  <section class="card" id="m6RecordsSection">
+    <h2>取数记录</h2>
+    <p class="muted" id="m6EmptyRecords">还没有取数记录。</p>
+    <div id="m6Records"></div>
+  </section>
+</section>
+
+<div class="modal" id="m6PreviewModal" onclick="if(event.target===this)m6ClosePreview()">
+  <div class="modal-box">
+    <div class="modal-head"><strong id="m6PreviewTitle">文件预览</strong><button type="button" class="btn light sm" onclick="m6ClosePreview()">关闭</button></div>
+    <div class="modal-content" id="m6PreviewContent"></div>
+  </div>
+</div>
+
+<style>
+.m6-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.m6-stats{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin-top:12px}
+.m6-stat{border:1px solid var(--line);background:#f8fafc;border-radius:7px;padding:12px}.m6-stat span{display:block;color:var(--muted);font-size:12px}.m6-stat b{display:block;margin-top:4px;font-size:23px;color:#172033}.m6-stat.used b{color:#d97706}.m6-stat.remain b{color:#078860}
+.m6-form-grid{grid-template-columns:repeat(3,minmax(180px,1fr));gap:12px}.m6-calc{margin-top:12px;padding:10px 12px;border-radius:6px;background:#eff6ff;color:#1e40af}.m6-calc b{font-size:16px}
+.m6-record{border:1px solid var(--line);border-radius:7px;margin-top:10px;overflow:hidden}.m6-record-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;background:#f8fafc}.m6-record-title{font-weight:900}.m6-record-meta{font-size:12px;color:var(--muted);margin-top:3px}.m6-record-body{padding:0 12px 12px}.m6-record summary{cursor:pointer;color:#1d4ed8;font-weight:800;padding:10px 0}.m6-record .table-wrap{margin-top:0;max-height:360px}
+@media(max-width:820px){.m6-stats{grid-template-columns:repeat(2,1fr)}.m6-form-grid{grid-template-columns:1fr}.m6-record-head{align-items:flex-start;flex-direction:column}}
+</style>
+
+<script>
+var m6Task=null;
+
+function m6Number(value){return Number(value||0).toLocaleString('zh-CN');}
+function m6Calc(){
+  var per=Math.max(0,Number(document.getElementById('m6PerFile').value)||0);
+  var files=Math.max(0,Number(document.getElementById('m6FileCount').value)||0);
+  document.getElementById('m6Needed').textContent=m6Number(per*files);
+  document.getElementById('m6FilesLabel').textContent=m6Number(files);
+}
+document.getElementById('m6PerFile').addEventListener('input',m6Calc);
+document.getElementById('m6FileCount').addEventListener('input',m6Calc);
+
+document.getElementById('m6UploadForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  var btn=document.getElementById('m6UploadBtn');btn.disabled=true;btn.textContent='正在读取总数据...';
+  try{
+    var resp=await fetch('/mode6/upload',{method:'POST',body:new FormData(e.target)});
+    var data=await resp.json();if(!resp.ok||!data.ok)throw new Error(data.error||'上传失败');
+    m6Task=data.task;try{localStorage.setItem('shanmao_mode6_active_task',m6Task.task_id);}catch(ignore){}
+    m6Render();document.getElementById('m6Workspace').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){showAppAlert({title:'上传失败',message:err.message||String(err),confirmText:'确定'});}
+  finally{btn.disabled=false;btn.textContent='上传并创建取数任务';}
+});
+
+function m6Render(){
+  if(!m6Task)return;
+  document.getElementById('m6Workspace').style.display='block';
+  document.getElementById('m6SourceInfo').textContent=m6Task.source_name+' · 创建于 '+m6Task.created_at;
+  document.getElementById('m6Total').textContent=m6Number(m6Task.total_count);
+  document.getElementById('m6Used').textContent=m6Number(m6Task.used_count);
+  document.getElementById('m6Remain').textContent=m6Number(m6Task.remain_count);
+  document.getElementById('m6RecordCount').textContent=m6Number((m6Task.records||[]).length);
+  m6RenderRecords();m6Calc();
+}
+
+function m6RenderRecords(){
+  var box=document.getElementById('m6Records');box.innerHTML='';
+  var records=m6Task.records||[];document.getElementById('m6EmptyRecords').style.display=records.length?'none':'block';
+  records.forEach(function(record){
+    var card=document.createElement('div');card.className='m6-record';
+    var head=document.createElement('div');head.className='m6-record-head';
+    var info=document.createElement('div');
+    var title=document.createElement('div');title.className='m6-record-title';title.textContent=record.prefix+' · '+record.file_count+' 个 TXT · 共 '+m6Number(record.total_count)+' 条';
+    var meta=document.createElement('div');meta.className='m6-record-meta';meta.textContent=record.created_at+'｜每个 '+m6Number(record.per_file_count)+' 条｜总数据第 '+m6Number(record.start_number)+' 至 '+m6Number(record.end_number)+' 条';
+    info.appendChild(title);info.appendChild(meta);
+    var download=document.createElement('a');download.className='btn green sm';download.textContent='下载 ZIP';download.href='/mode6/download/'+m6Task.task_id+'/'+record.record_id;
+    head.appendChild(info);head.appendChild(download);card.appendChild(head);
+    var body=document.createElement('div');body.className='m6-record-body';
+    var details=document.createElement('details');var summary=document.createElement('summary');summary.textContent='查看并预览 '+record.files.length+' 个 TXT';details.appendChild(summary);
+    var wrap=document.createElement('div');wrap.className='table-wrap';var table=document.createElement('table');
+    var thead=document.createElement('thead');thead.innerHTML='<tr><th>序号</th><th>文件名</th><th>号码数量</th><th>操作</th></tr>';table.appendChild(thead);
+    var tbody=document.createElement('tbody');record.files.forEach(function(file){
+      var tr=document.createElement('tr');var c1=document.createElement('td');c1.textContent=file.index;var c2=document.createElement('td');c2.textContent=file.filename;var c3=document.createElement('td');c3.textContent=m6Number(file.line_count);var c4=document.createElement('td');
+      var preview=document.createElement('button');preview.type='button';preview.className='btn light sm';preview.textContent='预览';preview.onclick=function(){m6Preview(record.record_id,file.index);};c4.appendChild(preview);
+      tr.appendChild(c1);tr.appendChild(c2);tr.appendChild(c3);tr.appendChild(c4);tbody.appendChild(tr);
+    });table.appendChild(tbody);wrap.appendChild(table);details.appendChild(wrap);body.appendChild(details);card.appendChild(body);box.appendChild(card);
+  });
+}
+
+async function m6TakeData(){
+  if(!m6Task)return;
+  var per=Number(document.getElementById('m6PerFile').value),files=Number(document.getElementById('m6FileCount').value),prefix=document.getElementById('m6Prefix').value.trim();
+  if(!Number.isInteger(per)||per<1||!Number.isInteger(files)||files<1){showAppAlert({title:'数量不正确',message:'每个 TXT 的号码数量和 TXT 文件数量必须是大于 0 的整数。',confirmText:'确定'});return;}
+  var needed=per*files;if(needed>m6Task.remain_count){showAppAlert({title:'剩余数据不足',message:'本次需要 '+m6Number(needed)+' 条，当前只剩 '+m6Number(m6Task.remain_count)+' 条。',confirmText:'确定'});return;}
+  var btn=document.getElementById('m6TakeBtn');btn.disabled=true;btn.textContent='正在取数并打包...';
+  try{
+    var resp=await fetch('/mode6/take',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_id:m6Task.task_id,per_file_count:per,file_count:files,prefix:prefix})});
+    var data=await resp.json();if(!resp.ok||!data.ok)throw new Error(data.error||'取数失败');m6Task=data.task;m6Render();
+    showAppAlert({title:'取数完成',message:data.message,confirmText:'确定',onConfirm:function(){document.getElementById('m6RecordsSection').scrollIntoView({behavior:'smooth'});}});
+  }catch(err){showAppAlert({title:'取数失败',message:err.message||String(err),confirmText:'确定'});}
+  finally{btn.disabled=false;btn.textContent='开始取数并打包';}
+}
+
+async function m6Preview(recordID,index){
+  var modal=document.getElementById('m6PreviewModal'),title=document.getElementById('m6PreviewTitle'),content=document.getElementById('m6PreviewContent');modal.classList.add('open');title.textContent='正在读取...';content.textContent='';
+  try{var resp=await fetch('/mode6/preview/'+m6Task.task_id+'/'+recordID+'/'+index);var data=await resp.json();if(!resp.ok||!data.ok)throw new Error(data.error||'预览失败');title.textContent=data.filename+' · '+m6Number(data.line_count)+' 条';content.textContent=data.content;}catch(err){title.textContent='预览失败';content.textContent=err.message||String(err);}
+}
+function m6ClosePreview(){document.getElementById('m6PreviewModal').classList.remove('open');}
+
+function m6ConfirmClear(){
+  if(!m6Task)return;showAppConfirm({title:'清除模式六任务',message:'确定清除当前总数据、全部取数记录和已经生成的 ZIP 吗？此操作不能撤回。',danger:true,confirmText:'确认清除',cancelText:'取消',onConfirm:m6Clear});
+}
+async function m6Clear(){
+  try{var resp=await fetch('/mode6/clear/'+m6Task.task_id,{method:'POST'});var data=await resp.json();if(!resp.ok||!data.ok)throw new Error(data.error||'清除失败');m6Task=null;document.getElementById('m6Workspace').style.display='none';document.getElementById('m6UploadForm').reset();try{localStorage.removeItem('shanmao_mode6_active_task');}catch(ignore){}showAppAlert({title:'已清除',message:'模式六当前任务已清除，可以重新上传总数据包。',confirmText:'确定'});}catch(err){showAppAlert({title:'清除失败',message:err.message||String(err),confirmText:'确定'});}
+}
+
+async function m6Restore(){
+  var id='';try{id=localStorage.getItem('shanmao_mode6_active_task')||'';}catch(ignore){}if(!id)return;
+  try{var resp=await fetch('/mode6/task/'+id);var data=await resp.json();if(!resp.ok||!data.ok)throw new Error('任务失效');m6Task=data.task;m6Render();}catch(err){try{localStorage.removeItem('shanmao_mode6_active_task');}catch(ignore){}}
+}
+document.addEventListener('DOMContentLoaded',m6Restore);
+</script>
+{{end}}

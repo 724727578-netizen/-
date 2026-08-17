@@ -1,0 +1,926 @@
+{{define "content"}}
+<style>
+.m4-layout{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;margin-top:10px}
+.m4-sidebar{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;max-height:75vh}
+.m4-sidebar h3{font-size:13px;margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.m4-task-scroll{flex:1;overflow-y:auto;min-height:0}
+.m4-task-item{padding:8px 10px;border:1px solid var(--line);border-radius:5px;margin-bottom:6px;cursor:pointer;transition:all .12s;display:block;text-decoration:none;color:var(--text)}
+.m4-task-item:hover{border-color:var(--brand);background:#f8faff}
+.m4-task-item.active{border-color:var(--brand);background:#eef4ff}
+.m4-task-item .m4-name{font-weight:700;font-size:13px;word-break:break-all}
+.m4-task-item .m4-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.m4-main{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-height:50vh}
+.m4-main h2{font-size:15px;margin:0 0 10px}
+.m4-group-list{display:grid;gap:10px;margin:8px 0}
+.m4-group-card{border:1px solid var(--line);border-radius:6px;padding:10px;background:#fff}
+.m4-group-header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.m4-group-header .m4-gname{flex:1;min-width:80px;font-weight:600;font-size:13px;color:#172033}
+.m4-group-header select{width:auto;min-width:155px;height:30px;font-size:12px;padding:0 28px 0 8px}
+.m4-base-badge{font-size:11px;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:2px 10px;border-radius:3px;font-weight:600;height:26px;display:inline-flex;align-items:center}
+.m4-group-card textarea{width:100%;min-height:70px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;margin:0;padding:6px 8px;border:1px solid var(--line);border-radius:4px;box-sizing:border-box}
+.m4-group-card textarea:focus{outline:0;border-color:var(--brand)}
+.m4-group-stat{font-size:11px;color:#64748b;margin:3px 0 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.m4-group-remove{background:var(--red);color:#fff;border:0;border-radius:4px;width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.8;transition:opacity .12s}
+.m4-group-remove:hover{opacity:1}
+.m4-group-remove:disabled{background:#ccc;cursor:not-allowed;opacity:.4}
+.m4-add-group-btn{border:1px dashed var(--line);border-radius:6px;padding:9px;text-align:center;cursor:pointer;color:var(--brand);font-weight:600;font-size:13px;background:transparent;width:100%;transition:background .12s}
+.m4-add-group-btn:hover{background:#f8faff;border-color:var(--brand)}
+.m4-result-box{background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:12px;margin-top:8px;max-height:450px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+.m4-empty{text-align:center;padding:30px 0;color:var(--muted)}
+.m4-empty p{margin:0 0 12px;font-size:14px}
+.m4-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.m4-stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin:6px 0 10px}
+.m4-stat-item{background:#f8fafc;border:1px solid var(--line);border-radius:5px;padding:6px 10px;font-size:12px}
+.m4-stat-item .label{color:#64748b;font-size:11px}
+.m4-stat-item .value{font-weight:700;color:#172033;font-size:13px}
+.m4-notice{font-size:12px;color:#f59e0b;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:6px 10px;margin:4px 0}
+.m4-result-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.m4-result-header h2{flex:1;margin:0}
+.m4-remark-edit{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.m4-remark-edit input{flex:1;height:32px}
+.m4-config-row{display:flex;gap:8px;align-items:center;margin:4px 0 0 0;flex-wrap:wrap}
+.m4-config-row label{font-size:11px;color:#64748b;display:flex;align-items:center;gap:4px}
+.m4-config-row input{width:60px;height:26px;font-size:12px;text-align:center;padding:0 4px;border:1px solid var(--line);border-radius:4px}
+.m4-group-dup{font-size:12px;color:#dd6b20;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:4px 8px;margin-top:4px;cursor:pointer;line-height:1.5}
+.m4-group-dup:hover{background:#fef3c7}
+.m4-group-dup a{color:#dd6b20;text-decoration:underline;cursor:pointer}
+.m4-group-dup a:hover{color:#c05621}
+.app-modal-body{white-space:pre-wrap}
+</style>
+
+<div class="m4-layout">
+  <!-- 左侧任务列表 -->
+  <div class="m4-sidebar">
+    <h3><span>历史任务</span><button class="btn sm light" onclick="m4RefreshList()" title="刷新">⟳</button></h3>
+    <div class="m4-task-scroll" id="m4TaskList"><p class="muted" style="text-align:center;padding:20px 0">加载中...</p></div>
+    <button class="btn red" id="m4ClearAllBtn" style="width:100%;margin-top:8px;flex-shrink:0" onclick="m4ClearAllTasks()">清空历史记录</button>
+  </div>
+
+  <!-- 右侧主区域 -->
+  <div class="m4-main">
+    <!-- 顶部操作栏 -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h2 style="margin:0" id="m4MainTitle">多组号码组合</h2>
+      <button class="btn" onclick="m4NewTask()">新建任务</button>
+    </div>
+
+    <!-- 创建任务面板 -->
+    <div id="m4PanelCreate">
+      <h2 style="display:none">多组号码组合</h2>
+      <div class="section-note" style="margin-bottom:8px">粘贴多组号码，系统按行对齐生成多个小组。第一组数量决定生成的小组数。</div>
+
+      <label style="font-weight:600;font-size:13px">任务备注</label>
+      <input type="text" id="m4Remark" placeholder="可选，例如：7月12日巴西号码组合" style="margin-bottom:8px" oninput="m4AutoSave()">
+
+      <label style="font-weight:600;font-size:13px">号码组列表</label>
+      <div class="m4-group-list" id="m4GroupList"></div>
+      <button class="m4-add-group-btn" onclick="m4AddGroup();m4AutoSave()">+ 添加一组号码</button>
+
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:12px">
+        <label style="font-weight:600;font-size:12px">生成小组数量：</label>
+        <select id="m4GroupCountMode" style="height:30px;font-size:12px;width:auto" onchange="m4ToggleGroupCount()">
+          <option value="auto">以第一组号码数量为准</option>
+          <option value="manual">手动指定</option>
+        </select>
+        <input type="number" id="m4GroupCountManual" value="10" min="1" max="99999" style="width:80px;height:28px;font-size:12px;display:none">
+      </div>
+
+      <div class="m4-actions">
+        <button class="btn" onclick="m4CreateTask()">生成组合任务</button>
+        <button class="btn light" onclick="m4ClearInput()">清空输入</button>
+      </div>
+    </div>
+
+    <!-- 结果查看面板 -->
+    <div id="m4PanelResult" style="display:none">
+      <div class="m4-result-header">
+        <h2 id="m4ResultTitle">组合结果</h2>
+        <span style="font-size:12px;color:var(--muted)" id="m4ResultTaskId"></span>
+      </div>
+
+      <!-- 备注编辑 -->
+      <div class="m4-remark-edit">
+        <input type="text" id="m4ResultRemark" placeholder="任务备注">
+        <button class="btn sm" onclick="m4SaveRemark()">保存备注</button>
+      </div>
+
+      <!-- 组统计 -->
+      <div class="m4-stat-grid" id="m4GroupStats"></div>
+
+      <!-- 数量提示 -->
+      <div id="m4NoticeArea"></div>
+
+      <!-- 结果内容 -->
+      <div class="m4-result-box" id="m4ResultText"></div>
+
+      <div class="m4-actions">
+        <button class="btn" onclick="m4CopyResult()">复制结果</button>
+        <a class="btn green" id="m4ExportBtn" href="#" target="_blank">导出 TXT</a>
+        <button class="btn light" onclick="m4BackToCreate()">返回编辑</button>
+        <button class="btn red" onclick="m4DeleteCurrentTask()">删除任务</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== 全局状态 ==========
+var m4Tasks = [];
+var m4CurrentTaskId = '';
+var m4GroupCounter = 0;
+var DRAFT_KEY = 'm4_draft';
+
+// ========== 初始化 ==========
+document.addEventListener('DOMContentLoaded',function(){
+  var listData = '{{.Mode4TaskList}}';
+  var tData = '{{.Mode4TaskData}}';
+  if(listData&&listData!==''){
+    try{ m4Tasks=JSON.parse(listData); }catch(e){}
+  }
+  if(tData&&tData!==''){
+    try{
+      var task=JSON.parse(tData);
+      m4CurrentTaskId=task.task_id;
+      m4ShowResult(task);
+      // 也保存为草稿，方便返回编辑
+      m4SaveTaskAsDraft(task);
+    }catch(e){}
+  }else{
+    // 不在结果页时，恢复之前保存的草稿
+    m4RestoreDraft();
+  }
+  m4RenderTaskList();
+  if(!document.querySelector('.m4-group-card')){
+    m4AddGroup(); // 第一组
+    m4AddGroup(); // 第二组
+  }
+});
+
+// ========== 草稿机制（使用 sessionStorage 持久化） ==========
+function m4SaveDraft(){
+  var draft = {
+    remark: document.getElementById('m4Remark').value,
+    groups: []
+  };
+  var cards = document.querySelectorAll('.m4-group-card');
+  for(var i=0;i<cards.length;i++){
+    var cid = cards[i].id.replace('m4Group_','');
+    var modeEl = document.getElementById('m4GroupMode_'+cid);
+    var textEl = document.getElementById('m4GroupText_'+cid);
+    var igcEl = document.getElementById('m4Igc_'+cid);
+    var bncEl = document.getElementById('m4Bnc_'+cid);
+    var bgcEl = document.getElementById('m4Bgc_'+cid);
+    draft.groups.push({
+      mode: modeEl?modeEl.value:'align',
+      raw_text: textEl?textEl.value:'',
+      insert_group_count: igcEl?parseInt(igcEl.value)||1:1,
+      batch_number_count: bncEl?parseInt(bncEl.value)||1:1,
+      batch_group_count: bgcEl?parseInt(bgcEl.value)||1:1,
+      rand_insert_count: parseInt(document.getElementById('m4Ric_'+cid))?parseInt(document.getElementById('m4Ric_'+cid).value)||1:1,
+      allow_repeat: document.getElementById('m4Repeat_'+cid)?document.getElementById('m4Repeat_'+cid).checked:false
+    });
+  }
+  try{ sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }catch(e){}
+}
+
+function m4SaveTaskAsDraft(task){
+  // 把历史任务的号码组转为草稿格式
+  if(!task||!task.groups) return;
+  var draft = {
+    remark: task.remark||'',
+    groups: []
+  };
+  for(var i=0;i<task.groups.length;i++){
+    var g=task.groups[i];
+    draft.groups.push({
+      mode: g.mode||'align',
+      raw_text: g.raw_text||'',
+      insert_group_count: g.insert_group_count||1,
+      batch_number_count: g.batch_number_count||1,
+      batch_group_count: g.batch_group_count||1,
+      rand_insert_count: g.rand_insert_count||1,
+      allow_repeat: g.allow_repeat||false
+    });
+  }
+  try{ sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }catch(e){}
+}
+
+function m4RestoreDraft(){
+  var raw=null;
+  try{ raw=sessionStorage.getItem(DRAFT_KEY); }catch(e){}
+  if(!raw) return;
+  var draft=null;
+  try{ draft=JSON.parse(raw); }catch(e){}
+  if(!draft) return;
+
+  // 清除已保存的草稿（避免页面刷新后重复恢复）
+  try{ sessionStorage.removeItem(DRAFT_KEY); }catch(e){}
+
+  document.getElementById('m4Remark').value = draft.remark||'';
+  // 确保足够的号码组
+  var needed = draft.groups.length;
+  var cards = document.querySelectorAll('.m4-group-card');
+  while(cards.length < needed){
+    m4AddGroup();
+    cards = document.querySelectorAll('.m4-group-card');
+  }
+  // 填充数据
+  for(var i=0;i<needed;i++){
+    var card = document.querySelectorAll('.m4-group-card')[i];
+    var cid = card.id.replace('m4Group_','');
+    var dg = draft.groups[i];
+    var isFirstGroup = (parseInt(cid)===1);
+    if(dg.mode && !isFirstGroup){
+      var modeEl = document.getElementById('m4GroupMode_'+cid);
+      if(modeEl) modeEl.value = dg.mode;
+    }
+    var textEl = document.getElementById('m4GroupText_'+cid);
+    if(textEl) textEl.value = dg.raw_text||'';
+    // 恢复配置字段
+    if(dg.insert_group_count !== undefined){
+      var igcEl = document.getElementById('m4Igc_'+cid);
+      if(igcEl) igcEl.value = dg.insert_group_count;
+    }
+    if(dg.batch_number_count !== undefined){
+      var bncEl = document.getElementById('m4Bnc_'+cid);
+      if(bncEl) bncEl.value = dg.batch_number_count;
+    }
+    if(dg.batch_group_count !== undefined){
+      var bgcEl = document.getElementById('m4Bgc_'+cid);
+      if(bgcEl) bgcEl.value = dg.batch_group_count;
+    }
+    if(dg.rand_insert_count !== undefined){
+      var ricEl = document.getElementById('m4Ric_'+cid);
+      if(ricEl) ricEl.value = dg.rand_insert_count;
+    }
+    if(dg.allow_repeat !== undefined){
+      var repEl = document.getElementById('m4Repeat_'+cid);
+      if(repEl) repEl.checked = dg.allow_repeat;
+    }
+    m4OnModeChange(parseInt(cid));
+    m4UpdateCount(parseInt(cid));
+  }
+}
+
+// 自动保存草稿：输入变化时触发
+function m4AutoSave(){
+  m4SaveDraft();
+}
+
+// ========== 添加号码组 ==========
+function m4AddGroup(data){
+  m4GroupCounter++;
+  var idx=m4GroupCounter;
+  var isFirst=(idx===1);
+  var list=document.getElementById('m4GroupList');
+  var div=document.createElement('div');
+  div.className='m4-group-card';
+  div.id='m4Group_'+idx;
+
+  // 所有号码组都支持全部5种模式
+  var modeOpts='<option value="align" selected>按行对齐</option><option value="fixed">固定号码插入全部小组</option><option value="repeat">每个号码插入多个小组</option><option value="batch">多个号码分批插入多个小组</option><option value="random">随机插入</option>';
+
+  // 前两组默认按行对齐，第三组起默认固定插入
+  var defaultMode=data&&data.mode?data.mode:(idx<=2?'align':'fixed');
+  var canRemove=!(idx<=2);
+
+  // 头部：第1组显示"基准组"标签，其余显示下拉框
+  var headerHtml;
+  if(isFirst){
+    headerHtml='<span class="m4-gname">第1组</span><span class="m4-base-badge">基准组</span>';
+  }else{
+    headerHtml='<span class="m4-gname">第'+idx+'组</span>'+
+      '<select id="m4GroupMode_'+idx+'" onchange="m4OnModeChange('+idx+');m4AutoSave()">'+modeOpts+'</select>'+
+      (canRemove?'<button class="m4-group-remove" onclick="m4RemoveGroup('+idx+');m4AutoSave()" title="删除该组">×</button>':'');
+  }
+
+  div.innerHTML=
+    '<div class="m4-group-header">'+headerHtml+'</div>'+
+    '<textarea id="m4GroupText_'+idx+'" placeholder="请输入号码，一行一条" spellcheck="false" oninput="m4UpdateCount('+idx+');m4AutoSave()"></textarea>'+
+    '<div class="m4-group-stat" id="m4GroupStat_'+idx+'">数量：<strong id="m4Count_'+idx+'">0</strong> 条　'+(isFirst?'类型：基准组':'模式：<span id="m4ModeLabel_'+idx+'">按行对齐</span>')+'</div>'+
+    '<div class="m4-config-row" id="m4ConfigRow_'+idx+'" style="display:none"></div>'+
+    '<div class="m4-group-dup" id="m4GroupDup_'+idx+'" style="display:none"></div>';
+  list.appendChild(div);
+
+  if(!isFirst){
+    var sel=document.getElementById('m4GroupMode_'+idx);
+    sel.value=defaultMode;
+    m4OnModeChange(idx);
+  }
+  m4UpdateCount(idx);
+}
+
+function m4RemoveGroup(idx){
+  var el=document.getElementById('m4Group_'+idx);
+  if(el) el.remove();
+  m4DetectDuplicates();
+}
+
+function m4UpdateCount(idx){
+  var text=document.getElementById('m4GroupText_'+idx).value;
+  var clean=text.split('\n').map(function(l){return l.trim();}).filter(function(l){return l!=='';});
+  document.getElementById('m4Count_'+idx).textContent=clean.length;
+  // 实时跨组重复检测
+  m4DetectDuplicates();
+}
+
+function m4OnModeChange(idx){
+  var modeEl=document.getElementById('m4GroupMode_'+idx);
+  if(!modeEl) return; // 第1组无下拉框
+  var mode=modeEl.value;
+  var labels={
+    align:'按行对齐',
+    fixed:'固定号码插入全部小组',
+    repeat:'每个号码插入多个小组',
+    batch:'多个号码分批插入多个小组'
+  };
+  document.getElementById('m4ModeLabel_'+idx).textContent=labels[mode]||mode;
+  if(mode==='fixed'){
+    document.getElementById('m4GroupText_'+idx).placeholder='输入固定号码（仅使用第一条）';
+  }else{
+    document.getElementById('m4GroupText_'+idx).placeholder='请输入号码，一行一条';
+  }
+  // 显示/隐藏配置行
+  var configRow=document.getElementById('m4ConfigRow_'+idx);
+  if(mode==='repeat'){
+    configRow.style.display='';
+    configRow.innerHTML=
+      '<label>每个号码插入 <input type="number" id="m4Igc_'+idx+'" value="1" min="1" max="999" onchange="m4AutoSave()"> 个小组</label>';
+  }else if(mode==='batch'){
+    configRow.style.display='';
+    configRow.innerHTML=
+      '<label>每 <input type="number" id="m4Bnc_'+idx+'" value="1" min="1" max="999" onchange="m4AutoSave()"> 个号码</label>'+
+      '<label>插入 <input type="number" id="m4Bgc_'+idx+'" value="1" min="1" max="999" onchange="m4AutoSave()"> 个小组</label>';
+  }else if(mode==='random'){
+    configRow.style.display='';
+    configRow.innerHTML=
+      '<label>每个小组插入 <input type="number" id="m4Ric_'+idx+'" value="1" min="1" max="999" onchange="m4AutoSave()"> 个号码</label>'+
+      '<label><input type="checkbox" id="m4Repeat_'+idx+'" onchange="m4AutoSave()"> 允许重复使用号码</label>';
+  }else{
+    configRow.style.display='none';
+  }
+}
+
+// ========== 跨组重复检测 ==========
+function m4DetectDuplicates(){
+  var allGroups = document.querySelectorAll('.m4-group-card');
+  var groupNumbers = [];
+
+  for(var i=0;i<allGroups.length;i++){
+    var cid = allGroups[i].id.replace('m4Group_','');
+    var text = document.getElementById('m4GroupText_'+cid).value;
+    var lines = text.split('\n').map(function(l){return l.trim();}).filter(function(l){return l!=='';});
+    groupNumbers.push({cid:cid,lines:lines});
+  }
+
+  var dupInfo = {};
+  for(var i=0;i<allGroups.length;i++){
+    dupInfo[i] = {total:0,details:{}};
+  }
+
+  // 两两比较
+  for(var i=0;i<groupNumbers.length;i++){
+    for(var j=i+1;j<groupNumbers.length;j++){
+      var linesI = groupNumbers[i].lines;
+      var linesJ = groupNumbers[j].lines;
+
+      // 用 Set 优化查找
+      var setJ = {};
+      for(var k=0;k<linesJ.length;k++){ setJ[linesJ[k]] = true; }
+      var setI = {};
+      for(var k=0;k<linesI.length;k++){ setI[linesI[k]] = true; }
+
+      // 组 i 中出现在组 j 的号码
+      var dupsI = [];
+      for(var k=0;k<linesI.length;k++){
+        if(setJ[linesI[k]]) dupsI.push(linesI[k]);
+      }
+      // 组 j 中出现在组 i 的号码
+      var dupsJ = [];
+      for(var k=0;k<linesJ.length;k++){
+        if(setI[linesJ[k]]) dupsJ.push(linesJ[k]);
+      }
+
+      if(dupsI.length>0){
+        dupInfo[i].total += dupsI.length;
+        dupInfo[i].details[j] = dupsI;
+      }
+      if(dupsJ.length>0){
+        dupInfo[j].total += dupsJ.length;
+        dupInfo[j].details[i] = dupsJ;
+      }
+    }
+  }
+
+  // 渲染警告
+  for(var i=0;i<allGroups.length;i++){
+    var cid = groupNumbers[i].cid;
+    var dupEl = document.getElementById('m4GroupDup_'+cid);
+    if(!dupEl) continue;
+    var info = dupInfo[i];
+    if(info && info.total>0){
+      dupEl.style.display='';
+      dupEl.innerHTML='⚠ 检测到 <strong>'+info.total+'</strong> 个号码与其他分组重复，<a href="javascript:void(0)" onclick="m4ShowDuplicateDetail('+cid+')">点击查看详情</a>';
+    }else{
+      dupEl.style.display='none';
+    }
+  }
+
+  window.__m4DupInfo = dupInfo;
+}
+
+function m4ShowDuplicateDetail(groupCid){
+  // 找到该组在 DOM 中的顺序索引
+  var allGroups = document.querySelectorAll('.m4-group-card');
+  var idx = -1;
+  for(var i=0;i<allGroups.length;i++){
+    if(allGroups[i].id==='m4Group_'+groupCid){ idx=i; break; }
+  }
+  if(idx<0) return;
+
+  var info = window.__m4DupInfo;
+  if(!info || !info[idx] || info[idx].total===0) return;
+
+  var details = info[idx].details;
+  var otherIndices = Object.keys(details).sort(function(a,b){return parseInt(a)-parseInt(b);});
+
+  var lines = [];
+  for(var i=0;i<otherIndices.length;i++){
+    var oi = parseInt(otherIndices[i]);
+    var otherCid = document.querySelectorAll('.m4-group-card')[oi].id.replace('m4Group_','');
+    var otherName = '第'+otherCid+'组';
+    var dups = details[oi];
+    lines.push('与 '+otherName+' 重复的号码（共 '+dups.length+' 个）：');
+    for(var j=0;j<dups.length;j++){
+      lines.push('  '+dups[j]);
+    }
+    if(i<otherIndices.length-1) lines.push('');
+  }
+
+  showAppAlert({
+    title:'第'+groupCid+'组 跨组重复详情',
+    message:lines.join('\n'),
+    confirmText:'知道了'
+  });
+}
+
+function m4ToggleGroupCount(){
+  var mode=document.getElementById('m4GroupCountMode').value;
+  document.getElementById('m4GroupCountManual').style.display=(mode==='manual')?'':'none';
+}
+
+// ========== 创建组合任务 ==========
+function m4CreateTask(){
+  // 保存草稿，返回时恢复
+  m4SaveDraft();
+
+  var remark=document.getElementById('m4Remark').value.trim();
+  var groupCards=document.querySelectorAll('.m4-group-card');
+  var groups=[];
+
+  for(var i=0;i<groupCards.length;i++){
+    var cid=groupCards[i].id.replace('m4Group_','');
+    var modeEl=document.getElementById('m4GroupMode_'+cid);
+    var mode=modeEl?modeEl.value:'align';
+    var raw=document.getElementById('m4GroupText_'+cid).value;
+    var lines=raw.split('\n').map(function(l){return l.trim();}).filter(function(l){return l!=='';});
+    if(lines.length===0) continue;
+    var name='第'+(i+1)+'组';
+    var g={
+      group_index:i+1,
+      group_name:name,
+      mode:mode,
+      raw_text:raw,
+      lines:lines,
+      line_count:lines.length
+    };
+    // 新增规则字段
+    if(mode==='repeat'){
+      var igcEl=document.getElementById('m4Igc_'+cid);
+      g.insert_group_count=igcEl?parseInt(igcEl.value)||1:1;
+    }
+    if(mode==='batch'){
+      var bncEl=document.getElementById('m4Bnc_'+cid);
+      var bgcEl=document.getElementById('m4Bgc_'+cid);
+      g.batch_number_count=bncEl?parseInt(bncEl.value)||1:1;
+      g.batch_group_count=bgcEl?parseInt(bgcEl.value)||1:1;
+    }
+    if(mode==='random'){
+      var ricEl=document.getElementById('m4Ric_'+cid);
+      var repEl=document.getElementById('m4Repeat_'+cid);
+      g.rand_insert_count=ricEl?parseInt(ricEl.value)||1:1;
+      g.allow_repeat=repEl?repEl.checked:false;
+    }
+    groups.push(g);
+  }
+
+  if(groups.length<2){
+    showAppAlert({title:'提示',message:'至少需要两组有效号码才能生成组合。请填写第一组和第二组号码。',confirmText:'我知道了'});
+    return;
+  }
+
+  if(groups[0].line_count===0){ showAppAlert({title:'提示',message:'第一组号码不能为空。',confirmText:'我知道了'}); return; }
+  if(groups[1].line_count===0){ showAppAlert({title:'提示',message:'第二组号码不能为空。',confirmText:'我知道了'}); return; }
+
+  // 获取生成小组数量
+  var resultGroupCount=0;
+  if(document.getElementById('m4GroupCountMode').value==='manual'){
+    resultGroupCount=parseInt(document.getElementById('m4GroupCountManual').value)||0;
+  }
+
+  var payload={
+    remark:remark,
+    result_group_count:resultGroupCount,
+    groups:groups.map(function(g){
+      var pg={group_name:g.group_name,mode:g.mode,raw_text:g.raw_text};
+      if(g.insert_group_count) pg.insert_group_count=g.insert_group_count;
+      if(g.batch_number_count) pg.batch_number_count=g.batch_number_count;
+      if(g.batch_group_count) pg.batch_group_count=g.batch_group_count;
+      if(g.rand_insert_count) pg.rand_insert_count=g.rand_insert_count;
+      if(g.allow_repeat) pg.allow_repeat=g.allow_repeat;
+      return pg;
+    })
+  };
+
+  m4CheckDupsAndSubmit(payload);
+}
+
+function m4CheckDupsAndSubmit(payload){
+  // 跨组重复检查
+  if(window.__m4DupInfo){
+    var totalDups=0;
+    for(var di in window.__m4DupInfo){
+      totalDups+=window.__m4DupInfo[di].total;
+    }
+    if(totalDups>0){
+      showAppConfirm({
+        title:'跨组重复提醒',
+        message:'当前号码组中存在跨组重复号码（共 '+totalDups+' 处），是否继续生成任务？',
+        confirmText:'继续生成',
+        cancelText:'返回检查',
+        onConfirm:function(){
+          m4SubmitCreateTask(payload);
+        }
+      });
+      return;
+    }
+  }
+  m4SubmitCreateTask(payload);
+}
+
+function m4SubmitCreateTask(payload){
+  fetch('/mode4/create',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.ok){
+      showAppAlert({title:'操作完成',message:'组合任务创建成功！共生成 '+data.groups+' 个小组。',confirmText:'确定',onConfirm:function(){
+        m4RefreshList(function(){
+          window.location.href='/mode4?task_id='+data.task_id;
+        });
+      }});
+    }else{
+      showAppAlert({title:'提示',message:data.error||'创建失败',confirmText:'我知道了'});
+    }
+  }).catch(function(err){
+    showAppAlert({title:'提示',message:'请求失败：'+err.message,confirmText:'我知道了'});
+  });
+}
+
+// ========== 加载任务 ==========
+function m4LoadTask(taskId){
+  fetch('/mode4/task/'+taskId).then(function(r){return r.json();}).then(function(data){
+    if(data.task){
+      m4CurrentTaskId=taskId;
+      m4ShowResult(data.task);
+      m4RenderTaskList();
+      var url=new URL(window.location);
+      url.searchParams.set('task_id',taskId);
+      window.history.replaceState({},'',url);
+    }
+  }).catch(function(){
+    showAppAlert({title:'提示',message:'加载任务失败',confirmText:'我知道了'});
+  });
+}
+
+// ========== 显示结果 ==========
+function m4ShowResult(task){
+  document.getElementById('m4PanelCreate').style.display='none';
+  document.getElementById('m4PanelResult').style.display='';
+
+  var title=task.remark||('组合结果 - '+task.task_id.substring(0,8));
+  document.getElementById('m4ResultTitle').textContent=title;
+  document.getElementById('m4ResultTaskId').textContent='ID: '+task.task_id.substring(0,8);
+  document.getElementById('m4ResultRemark').value=task.remark||'';
+  document.getElementById('m4ResultText').textContent=task.result_text||'';
+
+  // 组统计
+  var statsHtml='';
+  if(task.groups&&task.groups.length>0){
+    for(var i=0;i<task.groups.length;i++){
+      var g=task.groups[i];
+      var ml=getModeLabel(g.mode);
+      var usageText='';
+      if(g.mode==='fixed'){
+        usageText='使用 1 条';
+      }else if(g.mode==='repeat'||g.mode==='batch'||g.mode==='random'){
+        var used=(g.line_count||0);
+        var unused=(g.line_count_unused||0);
+        usageText='使用 '+(used-unused)+' 条';
+        if(unused>0) usageText+=', 剩余 '+unused+' 条未使用';
+      }else{
+        usageText='使用 '+g.line_count+' 条';
+      }
+      statsHtml+='<div class="m4-stat-item"><div class="label">'+(g.group_name||'第'+(i+1)+'组')+'</div><div class="value">'+g.line_count+' 条</div><div style="font-size:11px;color:#64748b;margin-top:1px">'+ml+'<br>'+usageText+'</div></div>';
+    }
+  }
+  statsHtml+='<div class="m4-stat-item"><div class="label">生成小组</div><div class="value">'+(task.result_groups||0)+' 个</div><div style="font-size:11px;color:#64748b">导出 '+(task.export_count||0)+' 次</div></div>';
+  document.getElementById('m4GroupStats').innerHTML=statsHtml;
+
+  // 数量提示（优先使用后端返回的 notices）
+  var noticeEl=document.getElementById('m4NoticeArea');
+  if(task.notices&&task.notices.length>0){
+    noticeEl.innerHTML='<div class="m4-notice">'+task.notices.join('<br>')+'</div>';
+  }else if(task.groups&&task.groups.length>1){
+    var firstCount=task.groups[0].line_count;
+    var notices=[];
+    for(var j=1;j<task.groups.length;j++){
+      var gg=task.groups[j];
+      if(gg.mode!=='align') continue;
+      if(gg.line_count<firstCount){
+        notices.push('第'+(j+1)+'组只有 '+gg.line_count+' 条，少于第一组 '+firstCount+' 条，后 '+(firstCount-gg.line_count)+' 个小组将只包含第一组号码。');
+      }else if(gg.line_count>firstCount){
+        notices.push('第'+(j+1)+'组有 '+gg.line_count+' 条，多于第一组 '+firstCount+' 条，多出的 '+(gg.line_count-firstCount)+' 条不会参与组合。');
+      }
+    }
+    noticeEl.innerHTML=notices.length>0?'<div class="m4-notice">'+notices.join('<br>')+'</div>':'';
+  }
+
+  document.getElementById('m4ExportBtn').href='/mode4/export/'+task.task_id;
+}
+
+function getModeLabel(m){
+  var map={
+    align:'按行对齐',
+    fixed:'固定号码插入全部小组',
+    repeat:'每个号码插入多个小组',
+    batch:'多个号码分批插入多个小组',
+    random:'随机插入'
+  };
+  return map[m]||m||'按行对齐';
+}
+
+// ========== 返回编辑（保留输入） ==========
+function m4BackToCreate(){
+  // 把结果编辑区的备注同步到草稿
+  var curRemark=document.getElementById('m4ResultRemark').value;
+  try{
+    var raw=sessionStorage.getItem(DRAFT_KEY);
+    if(raw){
+      var draft=JSON.parse(raw);
+      draft.remark=curRemark;
+      sessionStorage.setItem(DRAFT_KEY,JSON.stringify(draft));
+    }
+  }catch(e){}
+
+  document.getElementById('m4PanelCreate').style.display='';
+  document.getElementById('m4PanelResult').style.display='none';
+  document.getElementById('m4ResultTaskId').textContent='';
+  m4CurrentTaskId='';
+  var url=new URL(window.location);
+  url.searchParams.delete('task_id');
+  window.history.replaceState({},'',url);
+  m4RenderTaskList();
+
+  // 恢复草稿到编辑面板
+  m4RestoreDraft();
+}
+
+// ========== 复制结果 ==========
+function m4CopyResult(){
+  var text=document.getElementById('m4ResultText').textContent;
+  if(!text){ showAppAlert({title:'提示',message:'没有可复制的内容。',confirmText:'我知道了'}); return; }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      showAppAlert({title:'提示',message:'已复制',confirmText:'确定'});
+    }).catch(function(){
+      fallbackCopy(text);
+    });
+  }else{
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  var ta=document.createElement('textarea');
+  ta.value=text;
+  ta.style.position='fixed';ta.style.left='-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try{document.execCommand('copy');showAppAlert({title:'提示',message:'已复制',confirmText:'确定'});}catch(e){showAppAlert({title:'提示',message:'复制失败',confirmText:'我知道了'});}
+  document.body.removeChild(ta);
+}
+
+// ========== 保存备注 ==========
+function m4SaveRemark(){
+  if(!m4CurrentTaskId){ showAppAlert({title:'提示',message:'没有打开的任务。',confirmText:'我知道了'}); return; }
+  var remark=document.getElementById('m4ResultRemark').value.trim();
+  fetch('/mode4/remark/'+m4CurrentTaskId,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({remark:remark})
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.ok){
+      showAppAlert({title:'提示',message:'备注已保存。',confirmText:'确定'});
+      document.getElementById('m4ResultTitle').textContent=remark||('组合结果 - '+m4CurrentTaskId.substring(0,8));
+      m4RefreshList();
+    }else{
+      showAppAlert({title:'提示',message:data.error||'保存失败',confirmText:'我知道了'});
+    }
+  }).catch(function(){
+    showAppAlert({title:'提示',message:'保存备注失败',confirmText:'我知道了'});
+  });
+}
+
+// ========== 新建任务 ==========
+function m4NewTask(){
+  if(m4HasUnsavedContent()){
+    showAppConfirm({
+      title:'提示',
+      message:'当前编辑内容尚未保存，确定要新建任务吗？\n新建后，当前未保存的内容将被清空。',
+      confirmText:'确定新建',
+      cancelText:'取消',
+      onConfirm:m4ResetToNewTask
+    });
+  }else{
+    m4ResetToNewTask();
+  }
+}
+
+function m4ResetToNewTask(){
+  // 切回创建面板
+  document.getElementById('m4PanelResult').style.display='none';
+  document.getElementById('m4PanelCreate').style.display='';
+
+  // 清除当前任务 ID 和 URL 参数
+  m4CurrentTaskId='';
+  document.getElementById('m4ResultTaskId').textContent='';
+  var url=new URL(window.location);
+  url.searchParams.delete('task_id');
+  window.history.replaceState({},'',url);
+
+  // 清除草稿
+  try{ sessionStorage.removeItem(DRAFT_KEY); }catch(e){}
+
+  // 清空备注
+  document.getElementById('m4Remark').value='';
+
+  // 恢复默认号码组（2组，按行对齐）
+  var cards=document.querySelectorAll('.m4-group-card');
+  for(var i=cards.length-1;i>=0;i--){ cards[i].remove(); }
+  m4GroupCounter=0;
+  m4AddGroup();
+  m4AddGroup();
+
+  // 恢复小组数量规则为默认（以第一组为准）
+  document.getElementById('m4GroupCountMode').value='auto';
+  document.getElementById('m4GroupCountManual').style.display='none';
+
+  // 刷新历史任务列表高亮
+  m4RenderTaskList();
+}
+
+function m4HasUnsavedContent(){
+  // 如果当前在结果查看面板，视为有未保存内容
+  if(document.getElementById('m4PanelResult').style.display!=='none'){
+    return true;
+  }
+  // 检查备注是否有内容
+  var remark=document.getElementById('m4Remark').value.trim();
+  if(remark) return true;
+  // 检查各号码组是否有输入
+  var cards=document.querySelectorAll('.m4-group-card');
+  for(var i=0;i<cards.length;i++){
+    var cid=cards[i].id.replace('m4Group_','');
+    var text=document.getElementById('m4GroupText_'+cid).value.trim();
+    if(text) return true;
+  }
+  return false;
+}
+
+// ========== 清空输入 ==========
+function m4ClearInput(){
+  document.getElementById('m4Remark').value='';
+  try{ sessionStorage.removeItem(DRAFT_KEY); }catch(e){}
+  // 保留两组默认，清空内容
+  var cards=document.querySelectorAll('.m4-group-card');
+  // 删除第三组及以后
+  for(var i=cards.length-1;i>=2;i--){
+    cards[i].remove();
+  }
+  // 清空前两组
+  var remain=document.querySelectorAll('.m4-group-card');
+  for(var j=0;j<remain.length;j++){
+    var cid=remain[j].id.replace('m4Group_','');
+    document.getElementById('m4GroupText_'+cid).value='';
+    document.getElementById('m4Count_'+cid).textContent='0';
+    var modeEl=document.getElementById('m4GroupMode_'+cid);
+    if(modeEl) modeEl.value='align';
+    m4OnModeChange(parseInt(cid));
+  }
+  m4DetectDuplicates();
+}
+
+// ========== 渲染任务列表 ==========
+function m4RenderTaskList(){
+  var el=document.getElementById('m4TaskList');
+  var clearBtn=document.getElementById('m4ClearAllBtn');
+  if(!m4Tasks||m4Tasks.length===0){
+    el.innerHTML='<p class="muted" style="text-align:center;padding:20px 0">暂无历史任务</p>';
+    if(clearBtn){clearBtn.disabled=true;clearBtn.style.opacity='.5';clearBtn.style.cursor='not-allowed';}
+    return;
+  }
+  if(clearBtn){clearBtn.disabled=false;clearBtn.style.opacity='';clearBtn.style.cursor='';}
+  var h='';
+  for(var i=0;i<m4Tasks.length;i++){
+    var t=m4Tasks[i];
+    var active=(t.task_id===m4CurrentTaskId)?' active':'';
+    var name=t.remark||t.task_id.substring(0,8);
+    var exported=t.exported?' · 已导出':'';
+    h+='<a class="m4-task-item'+active+'" href="/mode4?task_id='+t.task_id+'">'+
+      '<div class="m4-name">'+esc(name)+'</div>'+
+      '<div class="m4-meta">'+t.created_at+' · '+t.result_groups+' 组'+exported+'</div></a>';
+  }
+  el.innerHTML=h;
+}
+
+// ========== 刷新列表 ==========
+function m4RefreshList(cb){
+  fetch('/mode4/tasks').then(function(r){return r.json();}).then(function(data){
+    m4Tasks=data.tasks||[];
+    m4RenderTaskList();
+    if(cb) cb();
+  }).catch(function(){if(cb) cb();});
+}
+
+// ========== 删除任务（一次确认 + 异步删除） ==========
+function m4DeleteTask(taskId){
+  showAppConfirm({
+    title:'操作确认',
+    message:'确定要删除这个组合任务吗？删除后无法恢复。',
+    confirmText:'确认删除',
+    danger:true,
+    cancelText:'取消',
+    onConfirm:function(){
+      fetch('/mode4/delete/'+taskId,{method:'POST'}).then(function(r){return r.json();}).then(function(data){
+        if(data.ok){
+          var wasCurrent=m4CurrentTaskId===taskId;
+          m4RefreshList(function(){
+            if(wasCurrent) m4BackToCreate();
+          });
+          showAppAlert({title:'提示',message:'任务已删除',confirmText:'确定'});
+        }else{
+          showAppAlert({title:'提示',message:data.error||'删除失败，请稍后重试',confirmText:'我知道了'});
+        }
+      }).catch(function(){
+        showAppAlert({title:'提示',message:'删除失败，请稍后重试',confirmText:'我知道了'});
+      });
+    }
+  });
+}
+function m4DeleteCurrentTask(){
+  if(m4CurrentTaskId) m4DeleteTask(m4CurrentTaskId);
+}
+
+// ========== 清空历史记录 ==========
+function m4ClearAllTasks(){
+  if(!m4Tasks||m4Tasks.length===0) return;
+  showAppConfirm({
+    title:'操作确认',
+    message:'确定要清空全部历史记录吗？\n清空后将无法恢复，请谨慎操作。',
+    confirmText:'确定清空',
+    danger:true,
+    cancelText:'取消',
+    onConfirm:function(){
+      fetch('/mode4/clear_all',{method:'POST'}).then(function(r){return r.json();}).then(function(data){
+        if(data.ok){
+          m4Tasks=[];
+          m4RenderTaskList();
+          showAppAlert({title:'提示',message:'历史记录已清空。',confirmText:'确定'});
+        }else{
+          showAppAlert({title:'提示',message:data.error||'清空失败',confirmText:'我知道了'});
+        }
+      }).catch(function(){
+        showAppAlert({title:'提示',message:'清空失败，请稍后重试',confirmText:'我知道了'});
+      });
+    }
+  });
+}
+
+// ========== 工具 ==========
+function esc(s){
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{{end}}

@@ -1,0 +1,415 @@
+{{define "content"}}
+<style>
+.mode2-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(420px,.75fr);gap:16px;align-items:start}
+.mode2-raw{height:200px;max-height:200px;overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.55}
+.mode2-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.mode2-actions .btn{min-height:32px;padding:6px 10px;font-size:12px}
+.mode2-copy-panel{background:linear-gradient(135deg,#f8fbff,#eef6ff);border:1px solid #bfdbfe;border-radius:8px;padding:12px}
+.mode2-copy-top{display:flex;justify-content:space-between;gap:8px;align-items:end;flex-wrap:wrap}
+.mode2-controls{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.mode2-controls .col{min-width:140px}
+.mode2-controls .btn{min-height:32px;padding:6px 10px;font-size:12px}
+.mode2-counts{display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:8px;margin-top:10px}
+.mode2-count{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-align:center;min-height:72px}
+.mode2-count strong{display:block;font-size:20px;line-height:28px;color:#101827}.mode2-count span{display:block;color:#64748b;font-size:12px;line-height:18px;font-weight:900;margin-top:2px}
+.mode2-result{margin-top:10px;background:#101827;color:#dbeafe;border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;max-height:100px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+.mode2-progress{height:6px;background:#dbe4ef;border-radius:999px;overflow:hidden;margin-top:8px}.mode2-progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#10b981,#2563eb);transition:width .18s ease}
+.mode2-empty{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:8px;padding:16px;text-align:center;color:#64748b;font-weight:800;line-height:1.6}
+.mode2-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff}.mode2-table{width:100%;border-collapse:separate;border-spacing:0;min-width:740px}
+.mode2-table th{position:sticky;top:0;background:#f8fafc;color:#334155;font-size:12px;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);z-index:1}
+.mode2-table td{padding:8px 10px;border-bottom:1px solid #eef2f7;vertical-align:middle;font-size:12px}.mode2-table tr:last-child td{border-bottom:none}
+.mode2-table tr.copied{background:#ecfdf5}.mode2-table tr.copied .mode2-link-text{text-decoration:line-through;text-decoration-color:#10b981;color:#047857}
+.mode2-filterbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 10px}
+.mode2-filterbar .filter-label{color:#475569;font-size:12px;font-weight:900;margin-right:2px}
+.mode2-filter{border:1px solid #dbe4ef;background:#f8fafc;color:#334155;border-radius:999px;padding:5px 8px;font-size:12px;font-weight:900;cursor:pointer}
+.mode2-filter.active{background:#2563eb;color:#fff;border-color:#2563eb;box-shadow:0 4px 10px rgba(37,99,235,.14)}
+.mode2-filter.ok.active{background:#059669;border-color:#059669}.mode2-filter.bad.active{background:#dc2626;border-color:#dc2626}.mode2-filter.unknown.active{background:#d97706;border-color:#d97706}
+.mode2-filter-info{color:#64748b;font-size:12px;font-weight:800}
+.mode2-index{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:900}
+.mode2-link-preview{display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px;align-items:center}
+.mode2-avatar{width:36px;height:36px;border-radius:50%;border:1px solid #dbe4ef;background:#f8fafc;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#94a3b8;font-weight:900;flex-shrink:0}
+.mode2-avatar img{width:100%;height:100%;object-fit:cover;display:block}.mode2-avatar.empty::before{content:"WS";font-size:11px}
+.mode2-link-text{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.mode2-group{margin-top:2px;color:#334155;font-weight:900;font-size:12px}.mode2-group.empty{color:#94a3b8}
+.mode2-check,.mode2-copy-status{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:900;border:1px solid #e2e8f0;background:#f1f5f9;color:#475569;white-space:nowrap}
+.mode2-check.ok{background:#dcfce7;color:#166534;border-color:#bbf7d0}.mode2-check.bad{background:#fee2e2;color:#991b1b;border-color:#fecaca}.mode2-check.unknown{background:#fef3c7;color:#92400e;border-color:#fde68a}.mode2-check.checking{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe}
+.mode2-copy-status.done{background:#d1fae5;color:#047857}.mode2-group-name{max-width:200px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155}
+.mode2-note{font-size:11px;color:#64748b;margin-top:4px;line-height:1.4;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mode2-pagination{display:flex;align-items:center;gap:8px;font-size:12px;margin:8px 0 0;flex-wrap:wrap;justify-content:flex-end}
+.mode2-pagination select{width:78px;height:32px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px}
+.mode2-page-btn{height:32px;padding:5px 10px;border:1px solid #c7d7fe;border-radius:7px;background:#eef4ff;color:#1d4ed8;font-weight:800;cursor:pointer;font-size:12px}
+.mode2-page-btn:disabled{opacity:.45;cursor:not-allowed}
+.mode2-page-btn:hover:not(:disabled){background:#d6e4ff}
+@media(max-width:1100px){.mode2-top{grid-template-columns:1fr}.mode2-copy-top{display:block}.mode2-controls .col{min-width:0;width:100%}}
+</style>
+<section class="mode2-top">
+  <div class="card" id="mode2-input-panel">
+    <h2>第一步：粘贴原始 WS 群链接内容</h2>
+    <label>原始内容粘贴框</label>
+    <textarea id="mode2RawText" class="mode2-raw"></textarea>
+    <div class="field-help">自动提取 chat.whatsapp.com 群邀请链接。</div>
+    <div class="mode2-actions">
+      <button class="btn green" type="button" onclick="mode2PasteFromClipboard()">从剪贴板粘贴并清洗</button>
+      <button class="btn" type="button" onclick="mode2CleanNow()">清洗链接</button>
+      <button class="btn orange" type="button" id="mode2CheckBtn" onclick="mode2CheckLinks()">检测可用性</button>
+      <button class="btn secondary" type="button" onclick="mode2CopyAll()">复制全部清洗结果</button>
+      <button class="btn secondary" type="button" onclick="mode2SelectRawText()">全选原始内容</button>
+      <button class="btn light" type="button" onclick="mode2DownloadTxt()">导出 TXT</button>
+      <button class="btn red" type="button" onclick="mode2ClearAll()">清空</button>
+    </div>
+  </div>
+  <div class="card" id="mode2-copy-panel">
+    <h2>第二步：分批复制</h2>
+    <div class="mode2-copy-panel">
+      <div class="mode2-copy-top">
+        <div class="mode2-controls">
+          <div class="col">
+            <label>每次复制数量</label>
+            <select id="mode2BatchSize" onchange="mode2ToggleCustomSize()">
+              <option value="5">5 条</option>
+              <option value="10" selected>10 条</option>
+              <option value="20">20 条</option>
+              <option value="30">30 条</option>
+              <option value="40">40 条</option>
+              <option value="50">50 条</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="col" id="mode2CustomSizeBox" style="display:none;">
+            <label>自定义数量</label>
+            <input type="number" id="mode2CustomSize" min="1" value="10">
+          </div>
+        </div>
+        <div class="mode2-actions">
+          <button class="btn" type="button" onclick="mode2CopyNextBatch()">复制下一批</button>
+          <button class="btn orange" type="button" onclick="mode2Undo()">返回上一次操作</button>
+          <button class="btn green" type="button" onclick="mode2ResetCopied()">恢复颜色 / 重新复制</button>
+        </div>
+      </div>
+      <div class="mode2-counts">
+        <div class="mode2-count"><strong id="mode2TotalCount">0</strong><span>清洗后总数</span></div>
+        <div class="mode2-count"><strong id="mode2CopiedCount">0</strong><span>已复制</span></div>
+        <div class="mode2-count"><strong id="mode2RemainCount">0</strong><span>未复制</span></div>
+        <div class="mode2-count"><strong id="mode2DuplicateCount">0</strong><span>重复清理</span></div>
+        <div class="mode2-count"><strong id="mode2CheckOkCount">0</strong><span>可用</span></div>
+        <div class="mode2-count"><strong id="mode2CheckBadCount">0</strong><span>链接失效</span></div>
+        <div class="mode2-count"><strong id="mode2CheckUnknownCount">0</strong><span>待确认</span></div>
+      </div>
+      <div class="mode2-result" id="mode2CopyResult">复制结果会显示在这里。</div>
+      <div class="mode2-progress"><span id="mode2ProgressBar"></span></div>
+    </div>
+  </div>
+</section>
+<section class="card" id="mode2-result-table">
+  <h2>清洗结果表格</h2>
+  <div class="mode2-filterbar">
+    <span class="filter-label">筛选：</span>
+    <button class="mode2-filter active" type="button" data-filter="all" onclick="mode2SetFilter('all')">全部</button>
+    <button class="mode2-filter ok" type="button" data-filter="ok" onclick="mode2SetFilter('ok')">可用</button>
+    <button class="mode2-filter bad" type="button" data-filter="bad" onclick="mode2SetFilter('bad')">封禁 / 失效</button>
+    <button class="mode2-filter unknown" type="button" data-filter="unknown" onclick="mode2SetFilter('unknown')">待确认</button>
+    <button class="mode2-filter" type="button" data-filter="unchecked" onclick="mode2SetFilter('unchecked')">未检测</button>
+    <span class="mode2-filter-info" id="mode2FilterInfo">当前显示全部链接</span>
+    <div class="mode2-pagination" id="mode2Pagination">
+      <button class="mode2-page-btn" id="mode2PrevBtn" onclick="mode2PrevPage()" disabled>上一页</button>
+      <span id="mode2PageNum">第 0 / 0 页</span>
+      <button class="mode2-page-btn" id="mode2NextBtn" onclick="mode2NextPage()" disabled>下一页</button>
+      <label style="display:inline-flex;align-items:center;gap:4px;color:#334155;font-size:12px">每页
+        <select id="mode2PageSize" onchange="mode2ChangePageSize()">
+          <option value="10">10 条</option>
+          <option value="50">50 条</option>
+          <option value="100">100 条</option>
+          <option value="1000">1000 条</option>
+        </select>
+      </label>
+    </div>
+  </div>
+  <div id="mode2Empty" class="mode2-empty">还没有清洗结果。请先在上方粘贴内容，然后点击"清洗链接"。</div>
+  <div id="mode2TableWrap" class="mode2-table-wrap" style="display:none;">
+    <table class="mode2-table">
+      <thead>
+        <tr>
+          <th style="width:60px;">编号</th>
+          <th>WS 群组链接</th>
+          <th style="width:200px;">群名称</th>
+          <th style="width:120px;">可用检测</th>
+          <th style="width:100px;">复制状态</th>
+        </tr>
+      </thead>
+      <tbody id="mode2TableBody"></tbody>
+    </table>
+  </div>
+</section>
+<script>
+const MODE2_STORAGE_RAW='gt_mode2_raw_text';
+const MODE2_STORAGE_LINKS='gt_mode2_clean_links';
+const MODE2_STORAGE_COPIED='gt_mode2_copied_indexes';
+const MODE2_STORAGE_CHECKS='gt_mode2_link_checks';
+let mode2Links=[];let mode2Copied=new Set();let mode2DuplicateCount=0;
+let mode2History=[];let mode2InputTimer=null;let mode2EditBaseline=null;
+let mode2InputDirty=false;let mode2LinkChecks={};let mode2Checking=false;
+let mode2Filter='all';let mode2CurrentPage=1;let mode2PageSize=10;
+function mode2NormalizeLink(raw){
+  let s=String(raw||'').trim();s=s.replace(/[，。；、,.;:：!！?？)\]}>]+$/g,'');
+  s=s.replace(/^[<\[{(（【]+/g,'');
+  if(!/^https?:\/\//i.test(s)) s='https://'+s;
+  const m=s.match(/^https?:\/\/chat\.whatsapp\.com\/([A-Za-z0-9_-]{8,80})/i);
+  return m?'https://chat.whatsapp.com/'+m[1]:'';
+}
+function mode2ExtractLinks(text){
+  const source=String(text||'');const re=/(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9_-]{8,80}/ig;
+  const seen=new Set();const links=[];let duplicate=0;let match;
+  while((match=re.exec(source))!==null){
+    const link=mode2NormalizeLink(match[0]);
+    if(!link) continue;
+    const key=link.toLowerCase();
+    if(seen.has(key)){duplicate+=1;continue;}
+    seen.add(key);links.push(link);
+  }
+  return{links:links,duplicate:duplicate};
+}
+function mode2SaveState(){
+  localStorage.setItem(MODE2_STORAGE_RAW,document.getElementById('mode2RawText').value||'');
+  localStorage.setItem(MODE2_STORAGE_LINKS,JSON.stringify(mode2Links));
+  localStorage.setItem(MODE2_STORAGE_COPIED,JSON.stringify(Array.from(mode2Copied)));
+  localStorage.setItem(MODE2_STORAGE_CHECKS,JSON.stringify(mode2LinkChecks));
+}
+function mode2Snapshot(label){
+  return{label:label||'上一步',raw:document.getElementById('mode2RawText').value||'',links:mode2Links.slice(),copied:Array.from(mode2Copied),duplicate:mode2DuplicateCount,checks:JSON.parse(JSON.stringify(mode2LinkChecks||{})),result:document.getElementById('mode2CopyResult').textContent||''};
+}
+function mode2PushHistory(label){
+  mode2History.push(mode2Snapshot(label));
+  if(mode2History.length>20) mode2History.shift();
+}
+function mode2RestoreSnapshot(state){
+  document.getElementById('mode2RawText').value=state.raw||'';
+  mode2Links=Array.isArray(state.links)?state.links.slice():[];
+  mode2Copied=new Set(Array.isArray(state.copied)?state.copied.map(x=>Number(x)).filter(x=>!Number.isNaN(x)):[]);
+  mode2DuplicateCount=Number(state.duplicate||0);
+  mode2LinkChecks=state.checks&&typeof state.checks==='object'?state.checks:{};
+  mode2SaveState();mode2Render();
+  document.getElementById('mode2CopyResult').textContent=state.result||('已返回：'+(state.label||'上一次操作'));
+}
+function mode2Undo(){
+  const state=mode2History.pop();
+  if(!state){showAppAlert({title:'提示',message:'没有可返回的上一步操作。',confirmText:'我知道了'});return;}
+  mode2RestoreSnapshot(state);
+}
+function mode2PruneChecks(){
+  const keep=new Set(mode2Links);const next={};
+  Object.keys(mode2LinkChecks||{}).forEach(function(link){if(keep.has(link)) next[link]=mode2LinkChecks[link];});
+  mode2LinkChecks=next;
+}
+function mode2ApplyCleanResult(result,silent){
+  const oldJoined=mode2Links.join('\n');mode2Links=result.links;
+  mode2DuplicateCount=result.duplicate||0;mode2PruneChecks();
+  if(oldJoined!==mode2Links.join('\n')) mode2Copied=new Set();
+  mode2CurrentPage=1;mode2SaveState();mode2Render();
+  if(!silent) document.getElementById('mode2CopyResult').textContent='清洗完成：共保留 '+mode2Links.length+' 条完整 WS 群链接，清理重复 '+mode2DuplicateCount+' 条。';
+}
+function mode2AutoClean(silent){mode2ApplyCleanResult(mode2ExtractLinks(document.getElementById('mode2RawText').value||''),silent);}
+function mode2LoadState(){
+  document.getElementById('mode2RawText').value=localStorage.getItem(MODE2_STORAGE_RAW)||'';
+  try{const arr=JSON.parse(localStorage.getItem(MODE2_STORAGE_LINKS)||'[]');mode2Links=Array.isArray(arr)?arr:[];}catch(e){mode2Links=[];}
+  try{const arr=JSON.parse(localStorage.getItem(MODE2_STORAGE_COPIED)||'[]');mode2Copied=new Set(Array.isArray(arr)?arr.map(x=>Number(x)).filter(x=>!Number.isNaN(x)):[]);}catch(e){mode2Copied=new Set();}
+  try{const saved=JSON.parse(localStorage.getItem(MODE2_STORAGE_CHECKS)||'{}');mode2LinkChecks=saved&&typeof saved==='object'&&!Array.isArray(saved)?saved:{};}catch(e){mode2LinkChecks={};}
+  mode2AutoClean(true);mode2EditBaseline=mode2Snapshot('输入前');
+}
+function mode2CleanNow(){mode2PushHistory('清洗前');mode2AutoClean(false);}
+function mode2GetCheckInfo(link){
+  const info=mode2LinkChecks[link];
+  if(!info||typeof info!=='object') return{status:'unchecked',label:'未检测',message:'',groupName:'',avatarUrl:''};
+  const status=info.status||'unknown';
+  const labels={ok:'可用',bad:'链接失效',unknown:'待确认',checking:'检测中',unchecked:'未检测'};
+  return{status:status,label:labels[status]||'待确认',message:info.message||'',groupName:info.groupName||info.group_name||'',avatarUrl:info.avatarUrl||info.avatar_url||''};
+}
+function mode2CheckSummary(){
+  let ok=0,bad=0,unknown=0;
+  mode2Links.forEach(function(link){
+    const s=mode2GetCheckInfo(link).status;
+    if(s==='ok') ok+=1;else if(s==='bad') bad+=1;else if(s==='unknown'||s==='checking') unknown+=1;
+  });
+  return{ok:ok,bad:bad,unknown:unknown};
+}
+function mode2FilterLabel(){
+  const labels={all:'全部',ok:'可用',bad:'封禁 / 失效',unknown:'待确认',unchecked:'未检测'};
+  return labels[mode2Filter]||'全部';
+}
+function mode2MatchesFilter(link){
+  if(mode2Filter==='all') return true;
+  const s=mode2GetCheckInfo(link).status;
+  if(mode2Filter==='unknown') return s==='unknown'||s==='checking';
+  if(mode2Filter==='unchecked') return s==='unchecked';
+  return s===mode2Filter;
+}
+function mode2SetFilter(filter){
+  mode2Filter=filter||'all';
+  document.querySelectorAll('.mode2-filter').forEach(function(b){b.classList.toggle('active',b.dataset.filter===mode2Filter);});
+  mode2CurrentPage=1;mode2Render();
+}
+function mode2UpdateCheckButton(){
+  const btn=document.getElementById('mode2CheckBtn');
+  if(!btn) return;btn.disabled=mode2Checking;btn.textContent=mode2Checking?'检测中...':'检测可用性';
+}
+function mode2Render(){
+  const tbody=document.getElementById('mode2TableBody');const empty=document.getElementById('mode2Empty');const wrap=document.getElementById('mode2TableWrap');
+  tbody.innerHTML='';
+  const allVisible=mode2Links.map(function(l,i){return{link:l,idx:i};}).filter(function(i){return mode2MatchesFilter(i.link);});
+  if(!mode2Links.length){empty.textContent='还没有清洗结果。请先在上方粘贴内容，然后点击"清洗链接"。';empty.style.display='block';wrap.style.display='none';document.getElementById('mode2Pagination').style.display='none';return;}
+  else if(!allVisible.length){empty.textContent='当前筛选"'+mode2FilterLabel()+'"下没有链接。可以切换到"全部"查看完整清洗结果。';empty.style.display='block';wrap.style.display='none';document.getElementById('mode2Pagination').style.display='none';return;}
+  else{empty.style.display='none';wrap.style.display='block';document.getElementById('mode2Pagination').style.display='flex';}
+  const total=allVisible.length;const totalPages=Math.max(1,Math.ceil(total/mode2PageSize));
+  if(mode2CurrentPage>totalPages)mode2CurrentPage=totalPages;
+  if(mode2CurrentPage<1)mode2CurrentPage=1;
+  const start=(mode2CurrentPage-1)*mode2PageSize;
+  const end=Math.min(start+mode2PageSize,total);
+  const pageItems=allVisible.slice(start,end);
+  pageItems.forEach(function(item){
+    const l=item.link,idx=item.idx,tr=document.createElement('tr');
+    if(mode2Copied.has(idx)) tr.className='copied';
+    const info=mode2GetCheckInfo(l);
+    const tdi=document.createElement('td');tdi.innerHTML='<span class="mode2-index">'+(idx+1)+'</span>';
+    const tdl=document.createElement('td');
+    const pre=document.createElement('div');pre.className='mode2-link-preview';
+    const av=document.createElement('div');av.className=info.avatarUrl?'mode2-avatar':'mode2-avatar empty';
+    if(info.avatarUrl){const img=document.createElement('img');img.src=info.avatarUrl;img.alt=info.groupName?info.groupName+' 群头像':'WS 群头像';img.referrerPolicy='no-referrer';img.loading='lazy';img.onerror=function(){av.className='mode2-avatar empty';av.innerHTML='';};av.appendChild(img);}
+    const main=document.createElement('div');
+    const lt=document.createElement('div');lt.className='mode2-link-text';lt.textContent=l;main.appendChild(lt);
+    pre.appendChild(av);pre.appendChild(main);tdl.appendChild(pre);
+    const tdg=document.createElement('td');
+    const gn=document.createElement('span');gn.className='mode2-group-name';
+    gn.textContent=info.groupName||'-';gn.title=info.groupName||'';
+    tdg.appendChild(gn);
+    const tdc=document.createElement('td');
+    const badge=document.createElement('span');badge.className='mode2-check '+info.status;badge.textContent=info.label;tdc.appendChild(badge);
+    const tds=document.createElement('td');const done=mode2Copied.has(idx);
+    tds.innerHTML='<span class="mode2-copy-status '+(done?'done':'')+'">'+(done?'已复制':'未复制')+'</span>';
+    tr.appendChild(tdi);tr.appendChild(tdl);tr.appendChild(tdg);tr.appendChild(tdc);tr.appendChild(tds);tbody.appendChild(tr);
+  });
+  const copiedCount=Array.from(mode2Copied).filter(i=>i>=0&&i<mode2Links.length).length;
+  const summary=mode2CheckSummary();
+  document.getElementById('mode2TotalCount').textContent=mode2Links.length;
+  document.getElementById('mode2CopiedCount').textContent=copiedCount;
+  document.getElementById('mode2RemainCount').textContent=Math.max(0,mode2Links.length-copiedCount);
+  document.getElementById('mode2DuplicateCount').textContent=mode2DuplicateCount;
+  document.getElementById('mode2CheckOkCount').textContent=summary.ok;
+  document.getElementById('mode2CheckBadCount').textContent=summary.bad;
+  document.getElementById('mode2CheckUnknownCount').textContent=summary.unknown;
+  const fi=document.getElementById('mode2FilterInfo');
+  const label=mode2FilterLabel();
+  if(fi) fi.textContent='当前显示：'+label+' '+Math.min(start+1,end)+'-'+end+' / '+total+' 条';
+  document.getElementById('mode2PageNum').textContent='第 '+mode2CurrentPage+' / '+totalPages+' 页';
+  document.getElementById('mode2PrevBtn').disabled=mode2CurrentPage<=1;
+  document.getElementById('mode2NextBtn').disabled=mode2CurrentPage>=totalPages;
+  const progress=mode2Links.length?Math.round((copiedCount/mode2Links.length)*100):0;
+  document.getElementById('mode2ProgressBar').style.width=progress+'%';mode2UpdateCheckButton();
+}
+function mode2PrevPage(){if(mode2CurrentPage>1){mode2CurrentPage--;mode2Render();}}
+function mode2NextPage(){
+  const total=Math.ceil(mode2Links.filter(function(l,i){return mode2MatchesFilter(l);}).length/mode2PageSize);
+  if(mode2CurrentPage<total){mode2CurrentPage++;mode2Render();}
+}
+function mode2ChangePageSize(){
+  mode2PageSize=parseInt(document.getElementById('mode2PageSize').value||'10',10);
+  mode2CurrentPage=1;mode2Render();
+}
+function mode2ToggleCustomSize(){
+  const v=document.getElementById('mode2BatchSize').value;
+  document.getElementById('mode2CustomSizeBox').style.display=v==='custom'?'block':'none';
+}
+function mode2GetBatchSize(){
+  const v=document.getElementById('mode2BatchSize').value;
+  if(v==='custom'){const n=parseInt(document.getElementById('mode2CustomSize').value||'0',10);return Math.max(1,n||1);}
+  return Math.max(1,parseInt(v||'10',10));
+}
+function mode2WriteClipboard(text){
+  if(navigator.clipboard&&window.isSecureContext) return navigator.clipboard.writeText(text);
+  return new Promise(function(resolve,reject){
+    const a=document.createElement('textarea');a.value=text;a.style.position='fixed';a.style.left='-9999px';
+    document.body.appendChild(a);a.focus();a.select();
+    try{const ok=document.execCommand('copy');document.body.removeChild(a);ok?resolve():reject(new Error('浏览器拒绝复制'));}
+    catch(e){document.body.removeChild(a);reject(e);}
+  });
+}
+function mode2ChunkArray(arr,size){const ch=[];for(let i=0;i<arr.length;i+=size) ch.push(arr.slice(i,i+size));return ch;}
+async function mode2CheckLinks(){
+  mode2AutoClean(true);
+  if(!mode2Links.length){showAppAlert({title:'提示',message:'没有识别到完整 WS 群链接，请先粘贴内容。',confirmText:'我知道了'});return;}
+  if(mode2Checking) return;
+  mode2PushHistory('检测可用性前');mode2Checking=true;
+  mode2Links.forEach(function(l){mode2LinkChecks[l]={status:'checking',message:'等待检测'};});
+  mode2SaveState();mode2Render();
+  const links=mode2Links.slice();const chunks=mode2ChunkArray(links,50);let checked=0,failed=false;
+  try{for(const chunk of chunks){
+    document.getElementById('mode2CopyResult').textContent='正在检测 WS 群链接可用性：'+checked+' / '+links.length;
+    const resp=await fetch('/mode2/check_links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({links:chunk})});
+    const data=await resp.json().catch(function(){return{};});
+    if(!resp.ok||!data.ok) throw new Error(data.error||('检测接口返回 HTTP '+resp.status));
+    (data.results||[]).forEach(function(item){
+      if(!item||!item.link)return;
+      mode2LinkChecks[item.link]={status:item.status||'unknown',message:item.message||'',groupName:item.group_name||'',avatarUrl:item.avatar_url||''};
+    });checked+=chunk.length;mode2SaveState();mode2Render();
+  }}catch(err){
+    failed=true;links.forEach(function(l){if(mode2GetCheckInfo(l).status==='checking') mode2LinkChecks[l]={status:'unknown',message:err.message||'检测中断'};});
+    showAppAlert({title:'提示',message:'检测失败或中断：'+(err.message||err),confirmText:'我知道了'});
+  }finally{mode2Checking=false;mode2SaveState();mode2Render();}
+  const summary=mode2CheckSummary();
+  document.getElementById('mode2CopyResult').textContent=(failed?'检测已中断':'检测完成')+'：可用 '+summary.ok+' 条，链接失效 '+summary.bad+' 条，待确认 '+summary.unknown+' 条。';
+}
+function mode2CopyNextBatch(){
+  mode2AutoClean(true);
+  if(!mode2Links.length){showAppAlert({title:'提示',message:'没有识别到完整 WS 群链接，请先粘贴内容。',confirmText:'我知道了'});return;}
+  const batch=mode2GetBatchSize();const idxs=[];
+  for(let i=0;i<mode2Links.length;i++){if(!mode2Copied.has(i)){idxs.push(i);if(idxs.length>=batch)break;}}
+  if(!idxs.length){showAppAlert({title:'提示',message:'没有未复制的链接了。如需重新复制，请点击"恢复颜色 / 重新复制"。',confirmText:'我知道了'});return;}
+  const text=idxs.map(i=>mode2Links[i]).join('\n');
+  mode2WriteClipboard(text).then(function(){
+    mode2PushHistory('复制上一批前');idxs.forEach(i=>mode2Copied.add(i));mode2SaveState();mode2Render();
+    document.getElementById('mode2CopyResult').textContent='已复制第 '+(idxs[0]+1)+' - '+(idxs[idxs.length-1]+1)+' 条，共 '+idxs.length+' 条：\n\n'+text;
+  }).catch(function(err){
+    document.getElementById('mode2CopyResult').textContent='复制失败，请手动复制下面内容：\n\n'+text;
+    showAppAlert({title:'提示',message:'自动复制失败，内容已显示在结果框里，可以手动复制。原因：'+err.message,confirmText:'我知道了'});
+  });
+}
+function mode2CopyAll(){
+  mode2AutoClean(true);
+  if(!mode2Links.length){showAppAlert({title:'提示',message:'没有识别到完整 WS 群链接，请先粘贴内容。',confirmText:'我知道了'});return;}
+  const text=mode2Links.join('\n');
+  mode2WriteClipboard(text).then(function(){
+    mode2PushHistory('复制全部前');mode2Links.forEach(function(_,i){mode2Copied.add(i);});mode2SaveState();mode2Render();
+    document.getElementById('mode2CopyResult').textContent='已复制全部 '+mode2Links.length+' 条：\n\n'+text;
+  }).catch(function(err){
+    document.getElementById('mode2CopyResult').textContent='复制失败，请手动复制下面内容：\n\n'+text;
+    showAppAlert({title:'提示',message:'自动复制失败，内容已显示在结果框里，可以手动复制。原因：'+err.message,confirmText:'我知道了'});
+  });
+}
+function mode2ResetCopied(){mode2PushHistory('恢复颜色前');mode2Copied=new Set();mode2SaveState();mode2Render();document.getElementById('mode2CopyResult').textContent='已恢复颜色区分，所有链接都可以重新复制。';}
+function mode2ClearAll(){
+  showAppConfirm({title:'危险操作确认',message:'确定清空业务模式二的粘贴内容、清洗结果和已复制颜色吗？',confirmText:'确认清空',cancelText:'取消',danger:true,onConfirm:function(){
+  mode2PushHistory('清空前');document.getElementById('mode2RawText').value='';mode2Links=[];mode2Copied=new Set();mode2LinkChecks={};mode2DuplicateCount=0;
+  localStorage.removeItem(MODE2_STORAGE_RAW);localStorage.removeItem(MODE2_STORAGE_LINKS);localStorage.removeItem(MODE2_STORAGE_COPIED);localStorage.removeItem(MODE2_STORAGE_CHECKS);
+  mode2Render();document.getElementById('mode2CopyResult').textContent='已清空。';mode2CurrentPage=1;
+  }});
+}
+function mode2DownloadTxt(){
+  mode2AutoClean(true);
+  if(!mode2Links.length){showAppAlert({title:'提示',message:'没有识别到完整 WS 群链接，请先粘贴内容。',confirmText:'我知道了'});return;}
+  const c=mode2Links.join('\n')+'\n';const b=new Blob([c],{type:'text/plain;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');
+  const n=new Date();const s=n.getFullYear().toString()+String(n.getMonth()+1).padStart(2,'0')+String(n.getDate()).padStart(2,'0')+'_'+String(n.getHours()).padStart(2,'0')+String(n.getMinutes()).padStart(2,'0')+String(n.getSeconds()).padStart(2,'0');
+  a.href=u;a.download='WS群链接清洗结果_'+s+'.txt';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);
+}
+function mode2SelectRawText(){const a=document.getElementById('mode2RawText');a.focus();a.select();}
+function mode2PasteFromClipboard(){
+  if(!navigator.clipboard||!navigator.clipboard.readText){showAppAlert({title:'提示',message:'当前浏览器不支持直接读取剪贴板，请手动粘贴到文本框。',confirmText:'我知道了'});return;}
+  navigator.clipboard.readText().then(function(t){mode2PushHistory('剪贴板粘贴前');document.getElementById('mode2RawText').value=t||'';mode2CleanNow();}).catch(function(err){showAppAlert({title:'提示',message:'读取剪贴板失败，请手动粘贴。原因：'+err.message,confirmText:'我知道了'});});
+}
+document.getElementById('mode2RawText').addEventListener('input',function(){
+  localStorage.setItem(MODE2_STORAGE_RAW,this.value||'');
+  if(mode2InputTimer) clearTimeout(mode2InputTimer);
+  if(!mode2InputDirty&&mode2EditBaseline){mode2History.push(mode2EditBaseline);if(mode2History.length>20) mode2History.shift();mode2InputDirty=true;}
+  mode2InputTimer=setTimeout(function(){mode2InputDirty=false;mode2EditBaseline=mode2Snapshot('输入前');},500);mode2AutoClean(true);
+});
+document.getElementById('mode2RawText').addEventListener('focus',function(){if(!mode2EditBaseline) mode2EditBaseline=mode2Snapshot('输入前');});
+mode2LoadState();mode2ToggleCustomSize();
+</script>
+{{end}}
